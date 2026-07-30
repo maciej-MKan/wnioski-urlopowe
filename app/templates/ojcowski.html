@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block tresc %}
+  <p>Na podstawie art.&nbsp;182<sup>3</sup> Kodeksu pracy zwracam się z wnioskiem
+     o udzielenie mi urlopu ojcowskiego{% if d.wymiar %} w wymiarze <strong>{{ d.wymiar }}</strong>{% endif %}
+     w terminie
+     {% if d.data_od %}od <strong>{{ d.data_od | krotko }}</strong>{% endif %}
+     {% if d.data_do %} do <strong>{{ d.data_do | krotko }}</strong>{% endif %}
+     {%- if not d.data_od and not d.data_do %}od dnia ..................... do dnia .....................{% endif %}.</p>
+
+  <p>Urlopu ojcowskiego dotyczy dziecko:</p>
+  <table class="dane-tabela">
+    <tr><td class="klucz">Imię i nazwisko dziecka:</td>
+        <td><strong>{{ d.dziecko_imie_nazwisko or "....................................................." }}</strong></td></tr>
+    <tr><td class="klucz">Data urodzenia dziecka:</td>
+        <td><strong>{{ d.dziecko_data_urodzenia | krotko or "....................................................." }}</strong></td></tr>
+  </table>
+
+  <p class="podstawa">Oświadczam, że nie korzystałem/-am dotychczas z urlopu ojcowskiego na powyższe
+     dziecko w wymiarze wyczerpującym uprawnienie wynikające z art.&nbsp;182<sup>3</sup> Kodeksu pracy.</p>
+{% endblock %}

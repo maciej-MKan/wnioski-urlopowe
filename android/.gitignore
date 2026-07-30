@@ -1,0 +1,15 @@
+*.iml
+.gradle/
+/build/
+/app/build/
+local.properties
+.idea/
+/captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+# Podpisywanie release — nie trzymamy sekretów/keystore w repo
+keystore.properties
+keystore/
+*.jks
+*.keystore

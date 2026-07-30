@@ -1,0 +1,5 @@
+[tool.pytest.ini_options]
+# Uruchamianie: `pytest` z katalogu projektu. `pythonpath = ["."]` udostępnia pakiet `app`.
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-ra --import-mode=importlib"

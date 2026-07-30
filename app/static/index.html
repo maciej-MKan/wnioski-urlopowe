@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Generator wniosków urlopowych</title>
+<link rel="stylesheet" href="/static/common.css">
+<style>
+  .wrap{max-width:860px;margin:0 auto;padding:28px 18px 60px}
+  h1{font-size:1.5rem;margin:0 0 4px}
+  .sub{color:var(--muted);margin:0 0 22px;font-size:.95rem}
+  .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
+  .tab{flex:1;min-width:150px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;
+       background:var(--card);cursor:pointer;font-size:.95rem;font-weight:600;color:var(--ink);
+       text-align:left;transition:.15s;box-shadow:var(--shadow)}
+  .tab small{display:block;font-weight:400;color:var(--muted);font-size:.8rem;margin-top:2px}
+  .tab.active{border-color:var(--accent);outline:2px solid var(--accent)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px;
+        box-shadow:var(--shadow);margin-bottom:18px}
+  .card h2{font-size:1.05rem;margin:0 0 14px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .full{grid-column:1/-1}
+  label{display:block;font-size:.82rem;color:var(--muted);margin-bottom:5px;font-weight:600}
+  input,textarea,select{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;
+       background:var(--bg);color:var(--ink);font-size:.95rem;font-family:inherit}
+  input:focus,textarea:focus,select:focus{outline:2px solid var(--accent);border-color:var(--accent)}
+  textarea{resize:vertical;min-height:78px}
+  .hint{font-size:.78rem;color:var(--muted);margin-top:4px}
+  .actions{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:6px}
+  button{border:none;border-radius:11px;padding:12px 20px;font-size:.95rem;font-weight:700;
+       cursor:pointer;transition:.15s}
+  .primary{background:var(--accent);color:#fff}
+  .primary:hover{background:var(--accent-d)}
+  .ghost{background:transparent;border:1px solid var(--line);color:var(--ink)}
+  .note{font-size:.82rem;color:var(--muted);background:var(--bg);border:1px solid var(--line);
+        border-radius:10px;padding:10px 12px;margin-top:12px}
+  .save-row{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:.82rem;margin-top:14px}
+  .flash{color:var(--ok);font-size:.85rem;font-weight:600}
+  .modal-box h3{font-size:1.1rem}
+  .modal-box input{width:100px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav class="topnav"><a href="/">Kalendarz</a><a href="/nowy" class="on">Nowy wniosek</a><a href="/ustawienia">Ustawienia</a></nav>
+  <h1>Generator wniosków urlopowych</h1>
+  <p class="sub">Wypełnij dane, pobierz PDF i podpisz go Profilem Zaufanym na <a href="https://www.gov.pl/web/gov/podpisz-dokument-elektronicznie-wykorzystaj-podpis-zaufany" target="_blank" rel="noopener">gov.pl → „Podpisz dokument"</a>.</p>
+
+  <div class="tabs" id="tabs"></div>
+
+  <div class="card">
+    <h2>Dane wspólne</h2>
+    <div class="grid" id="wspolne-grid"></div>
+    <div class="save-row">
+      <button type="button" id="zapisz-profil" class="ghost">Zapisz dane jako mój profil</button>
+      <span class="flash hidden" id="saved">zapisano w profilu</span>
+    </div>
+  </div>
+
+  <div id="sekcje"></div>
+
+  <div class="actions">
+    <button class="primary" id="btnDodajPobierz">Dodaj do kalendarza i pobierz</button>
+    <button class="ghost" id="btnDodaj">Dodaj do kalendarza</button>
+    <button class="ghost" id="btnPodglad">Podgląd w nowej karcie</button>
+    <span class="flash hidden" id="working">generuję…</span>
+    <span class="flash hidden" id="dodano"></span>
+  </div>
+
+  <p class="note">Wniosek jest zapisywany w kalendarzu urlopów i można pobrać jego PDF. Dane wspólne możesz zapisać jako profil — wstawią się do kolejnych wniosków (i w aplikacji mobilnej).</p>
+</div>
+
+<div class="modal-overlay hidden" id="modal">
+  <div class="modal-box">
+    <h3 style="margin:0 0 8px">Dzień wolny za święto w sobotę</h3>
+    <p class="muted" id="modal-tekst" style="margin:0 0 12px"></p>
+    <label for="modal-k">Ile takich dni wykorzystać w tym okresie?</label>
+    <input type="number" id="modal-k" min="0" step="1" value="0" style="width:100px">
+    <p class="hint" id="modal-hint" style="margin-top:6px"></p>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
+      <button class="ghost" id="modal-anuluj">Anuluj</button>
+      <button class="primary" id="modal-ok">Dalej</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/common.js"></script>
+<script>
+// $, api — z /static/common.js
+let REJESTR = null;      // { wspolne:[...], typy:[...] } — z /api/typy
+let aktywnyTyp = null;
+
+// ---- Budowa pojedynczego pola z deskryptora ----
+function budujPole(pole, idPrefix){
+  const wrap = document.createElement("div");
+  if(pole.szerokosc === "full") wrap.classList.add("full");
+  wrap.dataset.pole = pole.name;
+
+  const id = idPrefix + pole.name;
+  const lab = document.createElement("label");
+  lab.textContent = pole.label; lab.htmlFor = id;
+  wrap.appendChild(lab);
+
+  let inp;
+  if(pole.typ_pola === "textarea"){
+    inp = document.createElement("textarea");
+  } else if(pole.typ_pola === "select"){
+    inp = document.createElement("select");
+    (pole.opcje || []).forEach(o => {
+      const opt = document.createElement("option");
+      opt.value = o.value; opt.textContent = o.label;
+      inp.appendChild(opt);
+    });
+  } else {
+    inp = document.createElement("input");
+    inp.type = {date:"date", time:"time", number:"number"}[pole.typ_pola] || "text";
+  }
+  inp.id = id;
+  if(pole.placeholder) inp.placeholder = pole.placeholder;
+  if(pole.domyslna) inp.value = pole.domyslna;
+  wrap.appendChild(inp);
+
+  if(pole.hint || pole.auto_z_zakresu){
+    const h = document.createElement("div");
+    h.className = "hint"; h.id = id + "__hint";
+    if(pole.hint) h.textContent = pole.hint;
+    wrap.appendChild(h);
+  }
+  return wrap;
+}
+
+// ---- Zakładki + sekcje z rejestru ----
+function budujUI(){
+  const tabs = $("tabs");
+  REJESTR.typy.forEach((t, i) => {
+    const b = document.createElement("button");
+    b.className = "tab" + (i === 0 ? " active" : "");
+    b.dataset.typ = t.id;
+    b.innerHTML = "";
+    b.appendChild(document.createTextNode(t.nazwa));
+    if(t.zakladka_opis){
+      const s = document.createElement("small");
+      s.textContent = t.zakladka_opis; b.appendChild(s);
+    }
+    b.addEventListener("click", () => wybierzTyp(t.id));
+    tabs.appendChild(b);
+  });
+
+  const wg = $("wspolne-grid");
+  REJESTR.wspolne.forEach(p => wg.appendChild(budujPole(p, "w_")));
+
+  const sek = $("sekcje");
+  REJESTR.typy.forEach((t, i) => {
+    const card = document.createElement("div");
+    card.className = "card sekcja" + (i === 0 ? "" : " hidden");
+    card.dataset.sekcja = t.id;
+
+    const h2 = document.createElement("h2");
+    h2.textContent = t.nazwa; card.appendChild(h2);
+
+    const grid = document.createElement("div");
+    grid.className = "grid";
+    t.pola.forEach(p => grid.appendChild(budujPole(p, "f_" + t.id + "_")));
+    card.appendChild(grid);
+
+    if(t.uwaga){
+      const note = document.createElement("div");
+      note.className = "note"; note.textContent = t.uwaga;
+      card.appendChild(note);
+    }
+
+    // Reaktywność w obrębie sekcji: widoczność warunkowa + podpowiedź dni.
+    grid.querySelectorAll("input,select,textarea").forEach(el =>
+      el.addEventListener("change", () => { stosujWidocznosc(t.id); przeliczDni(t.id); }));
+
+    sek.appendChild(card);
+    stosujWidocznosc(t.id);
+  });
+
+  aktywnyTyp = REJESTR.typy[0].id;
+}
+
+function wybierzTyp(id){
+  aktywnyTyp = id;
+  document.querySelectorAll(".tab").forEach(x => x.classList.toggle("active", x.dataset.typ === id));
+  document.querySelectorAll(".sekcja").forEach(s => s.classList.toggle("hidden", s.dataset.sekcja !== id));
+}
+
+// ---- Widoczność warunkowa (widoczne_gdy) ----
+function stosujWidocznosc(typ){
+  const t = REJESTR.typy.find(x => x.id === typ);
+  t.pola.forEach(p => {
+    if(!p.widoczne_gdy) return;
+    const ctrl = $("f_" + typ + "_" + p.widoczne_gdy.pole);
+    const wrap = document.querySelector(`[data-sekcja="${typ}"] [data-pole="${p.name}"]`);
+    if(ctrl && wrap) wrap.classList.toggle("hidden", ctrl.value !== p.widoczne_gdy.wartosc);
+  });
+}
+
+// ---- Podpowiedź liczby dni z zakresu dat (pola auto_z_zakresu) ----
+function przeliczDni(typ){
+  const t = REJESTR.typy.find(x => x.id === typ);
+  t.pola.forEach(p => {
+    if(!p.auto_z_zakresu) return;
+    const od = $("f_" + typ + "_data_od"), do_ = $("f_" + typ + "_data_do");
+    const self = $("f_" + typ + "_" + p.name);
+    const hint = $("f_" + typ + "_" + p.name + "__hint");
+    if(!hint) return;
+    if(od && do_ && od.value && do_.value && self && !self.value){
+      const d = (new Date(do_.value) - new Date(od.value)) / 86400000 + 1;
+      hint.textContent = d > 0 ? `Zakres obejmuje ${d} dni kalendarzowych.` : "";
+    } else {
+      hint.textContent = p.hint || "";
+    }
+  });
+}
+
+// ---- Profil użytkownika (dane wspólne zapisane w bazie, §19) ----
+// „data" (data sporządzenia) jest per-wniosek — nie trafia do profilu.
+async function zapiszProfil(){
+  const dane = {};
+  REJESTR.wspolne.forEach(f => { if(f.name !== "data") dane[f.name] = $("w_" + f.name).value; });
+  const r = await api.putJson("/api/profil", dane);
+  if(!r.ok){ alert("Nie udało się zapisać profilu."); return; }
+  const s = $("saved"); s.classList.remove("hidden");
+  clearTimeout(window._st); window._st = setTimeout(() => s.classList.add("hidden"), 1500);
+}
+
+async function wczytaj(){
+  try{
+    const dane = await api.get("/api/profil");
+    REJESTR.wspolne.forEach(f => {
+      if(f.name !== "data" && dane[f.name] !== undefined) $("w_" + f.name).value = dane[f.name];
+    });
+  }catch(e){}
+  if($("w_data") && !$("w_data").value) $("w_data").value = new Date().toISOString().slice(0, 10);
+  const btn = $("zapisz-profil"); if(btn) btn.addEventListener("click", zapiszProfil);
+}
+
+// ---- Budowa payloadu ----
+function payload(){
+  const p = { typ: aktywnyTyp };
+  REJESTR.wspolne.forEach(f => p[f.name] = $("w_" + f.name).value);
+  const t = REJESTR.typy.find(x => x.id === aktywnyTyp);
+  t.pola.forEach(f => {
+    const el = $("f_" + aktywnyTyp + "_" + f.name);
+    if(el) p[f.name] = el.value;
+  });
+  return p;
+}
+
+function busy(on){ $("working").classList.toggle("hidden", !on); }
+
+// ---- Dialog: dzień wolny za święto (§15) ----
+const MIESIACE = ["stycznia","lutego","marca","kwietnia","maja","czerwca","lipca","sierpnia",
+                  "września","października","listopada","grudnia"];
+let _modalResolve = null;
+function pokazModal(maxK, dniRobocze, pozostalo, okres){
+  return new Promise(resolve => {
+    _modalResolve = resolve;
+    $("modal-tekst").textContent =
+      `Twój urlop obejmuje ${dniRobocze} dni roboczych, a masz jeszcze ${pozostalo} `
+      + `dni wolnych za święto (sobota) do wykorzystania w ${okres}. Możesz część z nich przeznaczyć `
+      + `na ten okres — powstanie wtedy osobny wniosek o dzień wolny (nie schodzi z urlopu).`;
+    const inp = $("modal-k"); inp.max = String(maxK); inp.value = "0";
+    $("modal-hint").textContent = `Podaj liczbę od 0 do ${maxK}.`;
+    $("modal").classList.remove("hidden"); inp.focus();
+  });
+}
+function zamknijModal(wynik){
+  $("modal").classList.add("hidden");
+  const r = _modalResolve; _modalResolve = null;
+  if(r) r(wynik);
+}
+$("modal-anuluj").addEventListener("click", () => zamknijModal(null));
+$("modal-ok").addEventListener("click", () => {
+  const maxK = parseInt($("modal-k").max || "0", 10);
+  let k = parseInt($("modal-k").value || "0", 10);
+  if(isNaN(k) || k < 0) k = 0;
+  if(k > maxK) k = maxK;
+  zamknijModal(k);
+});
+
+// Pyta o dni wolne za święto, gdy urlop wypoczynkowy je obejmuje. Zwraca k albo null (anulowano).
+// §16.1: dzień wolny rozlicza się w miesiącu, w którym wypada święto — bierzemy miesiąc daty „do”
+// (tam trafiają odcięte dni) i limit z pozycji bilansu dla tego miesiąca.
+async function ustalDniZaSwieto(p){
+  if(p.typ !== "wypoczynkowy" || !p.data_od || !p.data_do) return 0;
+  const rok = p.data_do.slice(0,4);
+  const miesiac = parseInt(p.data_do.slice(5,7), 10);
+  let pozostalo = 0, dniRobocze = 0;
+  try{
+    const bil = await api.get(`/api/bilans?rok=${rok}`);
+    const poz = bil.find(x => x.krotki_termin && x.miesiac === miesiac);
+    pozostalo = poz && poz.pozostalo != null ? poz.pozostalo : 0;
+    const dr = await api.get(`/api/dni-robocze?data_od=${p.data_od}&data_do=${p.data_do}`);
+    dniRobocze = dr.dni_robocze || 0;
+  }catch(e){ return 0; }
+  const maxK = Math.min(pozostalo, dniRobocze);
+  if(maxK <= 0) return 0;
+  return await pokazModal(maxK, dniRobocze, pozostalo, `${MIESIACE[miesiac-1]} ${rok}`);
+}
+
+async function pobierzPdf(id, nazwa){
+  const r = await fetch(`/api/rekordy/${id}/pdf`, { headers: authHeaders() });
+  if(r.status === 401){ onUnauthorized(); return; }
+  if(!r.ok) return;
+  const blob = await r.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url; a.download = nazwa || "wniosek.pdf"; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ---- Utworzenie wniosku/wniosków (§15) ----
+async function utworzWnioski(pobierz){
+  const p = payload();
+  const k = await ustalDniZaSwieto(p);
+  if(k === null) return;  // anulowano w dialogu
+  p.dni_za_swieto = k;
+  busy(true);
+  try{
+    const r = await api.postJson("/api/wnioski", p);
+    if(!r.ok){ alert("Błąd zapisu: " + r.status); return; }
+    const wnioski = (await r.json()).wnioski || [];
+    if(pobierz){ for(const w of wnioski) await pobierzPdf(w.id, w.nazwa_pliku); }
+    const info = $("dodano");
+    info.textContent = wnioski.length > 1
+      ? `dodano do kalendarza 2 wnioski (urlop + dzień wolny za święto)`
+      : `dodano do kalendarza`;
+    info.classList.remove("hidden");
+    clearTimeout(window._di); window._di = setTimeout(() => info.classList.add("hidden"), 3000);
+  } finally { busy(false); }
+}
+$("btnDodajPobierz").addEventListener("click", () => utworzWnioski(true));
+$("btnDodaj").addEventListener("click", () => utworzWnioski(false));
+
+// ---- Podgląd HTML ----
+$("btnPodglad").addEventListener("click", async () => {
+  busy(true);
+  try{
+    const r = await api.postJson("/api/podglad", payload());
+    if(!r.ok){ alert("Błąd podglądu: " + r.status); return; }
+    const html = await r.text();
+    const w = window.open("", "_blank");
+    w.document.write(html); w.document.close();
+  } finally { busy(false); }
+});
+
+// ---- Start ----
+(async function init(){
+  try{
+    // Typy zawężone do przysługujących w bieżącym roku (Ustawienia); wypoczynkowy zawsze aktywny.
+    const rok = new Date().getFullYear();
+    REJESTR = await api.get(`/api/typy?rok=${rok}`);
+    // Tylko typy przysługujące i „generowalne” (dzień wolny za święto powstaje z podziału, nie jako zakładka).
+    const aktywne = REJESTR.typy.filter(t => t.aktywny && t.generowalny !== false);
+    if(aktywne.length) REJESTR.typy = aktywne;  // gdyby nic nie było aktywne — pokaż wszystko
+  }catch(e){
+    alert("Nie udało się pobrać rejestru typów wniosków.");
+    return;
+  }
+  budujUI();
+  wczytaj();
+  prefillZUrl();
+})();
+
+// §17: prefill dat z parametrów URL (przejście z kalendarza „Utwórz wniosek”).
+function prefillZUrl(){
+  const qs = new URLSearchParams(location.search);
+  const od = qs.get("data_od"), doo = qs.get("data_do");
+  if(!od && !doo) return;
+  const elOd = $("f_" + aktywnyTyp + "_data_od"), elDo = $("f_" + aktywnyTyp + "_data_do");
+  if(od && elOd) elOd.value = od;
+  if(doo && elDo) elDo.value = doo;
+  stosujWidocznosc(aktywnyTyp); przeliczDni(aktywnyTyp);
+}
+</script>
+</body>
+</html>

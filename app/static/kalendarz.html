@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kalendarz urlopów</title>
+<link rel="stylesheet" href="/static/common.css">
+<style>
+  :root{ --wolne:#eef1f6; }  /* token specyficzny dla kalendarza (dni wolne) */
+  @media (prefers-color-scheme: dark){ :root{ --wolne:#232936; } }
+  .wrap{max-width:1000px;margin:0 auto;padding:28px 18px 60px}
+  h1{font-size:1.5rem;margin:0 0 4px}
+  .sub{color:var(--muted);margin:0 0 18px;font-size:.95rem}
+  .pasek{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+  .pasek .okres{font-weight:700;font-size:1.05rem;min-width:170px;text-align:center}
+  button{border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:.9rem;font-weight:600;
+       cursor:pointer;background:var(--card);color:var(--ink);transition:.15s}
+  button:hover{border-color:var(--accent)}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .seg button{border:none;border-radius:0}
+  .seg button.on{background:var(--accent);color:#fff}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;
+        box-shadow:var(--shadow);margin-bottom:16px}
+  /* siatka miesiąca */
+  .miesiac{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+  .dow{font-size:.72rem;color:var(--muted);text-align:center;font-weight:700;padding:2px 0}
+  .dzien{aspect-ratio:1/1;border:1px solid var(--line);border-radius:8px;padding:4px;position:relative;
+       font-size:.82rem;background:var(--card);overflow:hidden}
+  .dzien.pusty{border:none;background:transparent}
+  .dzien.wolne{background:var(--wolne)}
+  .dzien.ma{cursor:pointer}
+  .dzien .num{font-weight:600}
+  .dzien.dzis .num{color:var(--accent);text-decoration:underline}
+  .dzien .kropki{position:absolute;bottom:3px;left:4px;right:4px;display:flex;gap:2px;flex-wrap:wrap}
+  .kropka{width:8px;height:8px;border-radius:50%}
+  /* statusy jako styl wypełnienia */
+  .st-zaakceptowany{}
+  .st-do_akceptacji{outline:2px dashed currentColor;outline-offset:-3px}
+  .st-odrzucony .num{text-decoration:line-through;color:var(--muted)}
+  .swieto-znak{position:absolute;top:2px;right:4px;font-size:.6rem;color:var(--muted)}
+  /* widok roczny */
+  .rok-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .mini h3{margin:0 0 6px;font-size:.9rem;text-align:center;cursor:pointer}
+  .mini .miesiac{gap:2px}
+  .mini .dzien{border-radius:4px;padding:0;font-size:.6rem;display:flex;align-items:center;justify-content:center}
+  .mini .dzien .kropki,.mini .swieto-znak{display:none}
+  .mini .dow{font-size:.55rem;padding:0}
+  /* legenda */
+  .legenda{display:flex;flex-wrap:wrap;gap:14px;font-size:.82rem;color:var(--muted)}
+  .legenda .item{display:flex;align-items:center;gap:6px}
+  .sw{width:14px;height:14px;border-radius:4px;border:1px solid var(--line)}
+  /* panel szczegółów */
+  .szczegoly{display:none}
+  .szczegoly.on{display:block}
+  .rek{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line);flex-wrap:wrap}
+  .rek:first-of-type{border-top:none}
+  .badge{font-size:.72rem;padding:2px 8px;border-radius:20px;border:1px solid var(--line);color:var(--muted)}
+  .muted{color:var(--muted);font-size:.85rem}
+  .akcje{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap}
+  .akcje a{align-self:center}
+  .mini-btn{border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:.78rem;font-weight:600;
+       cursor:pointer;background:var(--card);color:var(--ink)}
+  .mini-btn:hover{border-color:var(--accent)}
+  .mini-btn.gro{border-color:var(--ok);color:var(--ok)}
+  .mini-btn.czer{border-color:var(--zla,#d0453b);color:var(--zla,#d0453b)}
+  .mini-form{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;width:100%;margin-top:8px;
+       padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+  .mini-form label{margin-bottom:3px}
+  .mini-form input,.mini-form select{padding:7px 9px;border:1px solid var(--line);border-radius:8px;
+       background:var(--card);color:var(--ink);font-size:.85rem}
+  .prim{background:var(--accent);color:#fff;border:none}
+  /* §17 zaznaczanie okresu (modal .modal-overlay/.modal-box — w common.css) */
+  .wybor-hint{background:var(--card);border:1px solid var(--accent);border-radius:10px;
+       padding:9px 12px;margin-bottom:12px;font-size:.9rem;box-shadow:var(--shadow)}
+  .dzien.wybor-start{outline:2px solid var(--accent);outline-offset:-2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav class="topnav"><a href="/" class="on">Kalendarz</a><a href="/nowy">Nowy wniosek</a><a href="/ustawienia">Ustawienia</a></nav>
+  <h1>Kalendarz urlopów</h1>
+  <p class="sub">Zaplanowane i wykorzystane urlopy. Święta i weekendy wyszarzone — nie schodzą z puli dni roboczych. Kliknij dzień, by zaznaczyć okres.</p>
+
+  <div class="wybor-hint hidden" id="wybor-hint">
+    Zaznaczanie okresu: kliknij <strong>dzień końcowy</strong> (albo ten sam, by wybrać jeden dzień). <em>Esc — anuluj.</em>
+  </div>
+
+  <div class="pasek">
+    <div class="seg"><button id="w-miesiac" class="on">Miesiąc</button><button id="w-rok">Rok</button></div>
+    <button id="prev">‹</button>
+    <div class="okres" id="okres"></div>
+    <button id="next">›</button>
+    <button id="dzis">Dziś</button>
+    <button id="odswiez" title="Wczytaj rekordy ponownie">Odśwież</button>
+    <button id="dodaj-toggle">+ Dodaj ręcznie</button>
+  </div>
+
+  <div class="card hidden" id="dodaj-karta">
+    <h2 style="margin:0 0 6px;font-size:1.05rem">Dodaj urlop odbyty (ręcznie)</h2>
+    <p class="muted" style="margin:0 0 10px">Dla urlopów spoza aplikacji — bez PDF, domyślnie zaakceptowane.</p>
+    <div class="mini-form" id="dodaj-form"></div>
+  </div>
+
+  <div class="card" id="widok"></div>
+
+  <div class="card szczegoly" id="szczegoly"></div>
+
+  <div class="card">
+    <div class="legenda" id="legenda"></div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="okres-modal">
+  <div class="modal-box">
+    <h3 style="margin:0 0 6px;font-size:1.1rem">Wybrany okres</h3>
+    <p class="muted" id="okres-modal-zakres" style="margin:0 0 14px"></p>
+    <p style="margin:0 0 14px">Co chcesz zrobić z tym okresem?</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end">
+      <button class="mini-btn" id="okres-anuluj">Anuluj</button>
+      <button class="mini-btn" id="okres-reczny">Dodaj ręcznie</button>
+      <button class="mini-btn prim" id="okres-wniosek">Utwórz wniosek</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/common.js"></script>
+<script>
+// $, api, pad, klucz, fmtZakres — z /static/common.js
+const MIESIACE = ["styczeń","luty","marzec","kwiecień","maj","czerwiec","lipiec","sierpień",
+                  "wrzesień","październik","listopad","grudzień"];
+const DOW = ["Pn","Wt","Śr","Cz","Pt","So","Nd"];
+const STATUS_LABEL = {do_akceptacji:"do akceptacji", zaakceptowany:"zaakceptowany", odrzucony:"odrzucony"};
+
+let TYPY = {};            // id -> {nazwa, kolor} — wszystkie (do kolorów/legendy istniejących rekordów)
+let AKTYWNE = {};         // rok -> Set(id) — typy przysługujące w danym roku (Ustawienia)
+let REKORDY = [];         // z /api/rekordy
+let SWIETA = {};          // rok -> { "YYYY-MM-DD": nazwa }
+let widok = "miesiac";
+let biezacy = new Date(); // dziś jako punkt startowy
+let wyborStart = null;    // §17: klucz dnia startowego zaznaczania okresu (albo null)
+
+// ---- narzędzia dat (pad, klucz, fmtZakres — w common.js) ----
+const dowIndex = js => (js + 6) % 7;       // JS: ndz=0 -> nasz: pon=0
+function fmtDlugi(y,m,d){
+  const nazwyDni = ["niedziela","poniedziałek","wtorek","środa","czwartek","piątek","sobota"];
+  const dow = new Date(y,m,d).getDay();
+  return `${nazwyDni[dow]}, ${d} ${MIESIACE[m]} ${y}`;
+}
+
+// ---- pobieranie danych ----
+async function wczytajSwieta(rok){
+  if(SWIETA[rok]) return SWIETA[rok];
+  const lista = await api.get(`/api/swieta?rok=${rok}`);
+  const mapa = {};
+  lista.forEach(s => mapa[s.data] = s.nazwa);
+  SWIETA[rok] = mapa;
+  return mapa;
+}
+async function wczytajRekordy(){
+  REKORDY = await api.get("/api/rekordy");
+}
+async function wczytajTypy(){
+  const d = await api.get("/api/typy");
+  d.typy.forEach(t => TYPY[t.id] = {nazwa:t.nazwa, kolor:t.kolor, generowalny:t.generowalny});
+}
+// Zbiór typów przysługujących w danym roku (wg Ustawień) — do formularza „Dodaj ręcznie”.
+async function aktywneTypy(rok){
+  if(AKTYWNE[rok]) return AKTYWNE[rok];
+  const d = await api.get(`/api/typy?rok=${rok}`);
+  const s = new Set(d.typy.filter(t => t.aktywny).map(t => t.id));
+  AKTYWNE[rok] = s;
+  return s;
+}
+
+// ---- logika kalendarza ----
+function rekordyNaDzien(k){
+  return REKORDY.filter(r => {
+    const od = r.data_od, do_ = r.data_do || r.data_od;
+    return od && od <= k && k <= (do_ || od);
+  });
+}
+function kolorAlfa(hex, alfa){ return hex + alfa; }  // hex 6-cyfrowy + składnik alfa (np. "33")
+
+// Buduje komórkę dnia; `mini` = tryb miniatury (widok roczny).
+function komorkaDnia(y, m, d, swieta, mini){
+  const k = klucz(y,m,d);
+  const cell = document.createElement("div");
+  cell.className = "dzien";
+  const js = new Date(y,m,d).getDay();
+  const weekend = (js === 0 || js === 6);
+  const swieto = swieta[k];
+  if(weekend || swieto) cell.classList.add("wolne");
+
+  const num = document.createElement("div");
+  num.className = "num"; num.textContent = d;
+  cell.appendChild(num);
+
+  const dzis = new Date();
+  if(y===dzis.getFullYear() && m===dzis.getMonth() && d===dzis.getDate()) cell.classList.add("dzis");
+
+  if(swieto && !mini){
+    const z = document.createElement("div"); z.className="swieto-znak"; z.textContent="●";
+    z.title = swieto; cell.appendChild(z);
+    cell.title = swieto;
+  }
+
+  const reki = rekordyNaDzien(k);
+  if(reki.length){
+    cell.classList.add("ma");
+    const glowny = reki[0];
+    const kolor = (TYPY[glowny.typ]||{}).kolor || "#888888";
+    // wypełnienie i status
+    const alfa = glowny.status === "zaakceptowany" ? "cc"
+               : glowny.status === "odrzucony" ? "14" : "40";
+    cell.style.background = kolorAlfa(kolor, alfa);
+    cell.style.borderLeft = `4px solid ${kolor}`;
+    cell.style.color = kolor;                       // dla outline dashed (currentColor)
+    cell.classList.add("st-" + glowny.status);
+    if(!mini){
+      const kropki = document.createElement("div"); kropki.className="kropki";
+      reki.forEach(r => {
+        const kr = document.createElement("span"); kr.className="kropka";
+        kr.style.background = (TYPY[r.typ]||{}).kolor || "#888"; kropki.appendChild(kr);
+      });
+      cell.appendChild(kropki);
+    } else {
+      cell.style.cursor = "pointer";
+      cell.addEventListener("click", () => { widok="miesiac"; biezacy=new Date(y,m,1); render(); });
+    }
+  }
+  // §17: w widoku miesięcznym każdy dzień jest klikalny — szczegóły rekordu albo zaznaczanie okresu.
+  if(!mini){
+    cell.style.cursor = "pointer";
+    if(wyborStart === k) cell.classList.add("wybor-start");
+    cell.addEventListener("click", () => onDayClick(y,m,d,reki,swieto));
+  }
+  return cell;
+}
+
+function siatkaMiesiaca(y, m, swieta, mini){
+  const grid = document.createElement("div");
+  grid.className = "miesiac";
+  DOW.forEach(d => { const h=document.createElement("div"); h.className="dow"; h.textContent=d; grid.appendChild(h); });
+  const pierwszy = dowIndex(new Date(y,m,1).getDay());
+  for(let i=0;i<pierwszy;i++){ const p=document.createElement("div"); p.className="dzien pusty"; grid.appendChild(p); }
+  const dni = new Date(y,m+1,0).getDate();
+  for(let d=1; d<=dni; d++) grid.appendChild(komorkaDnia(y,m,d,swieta,mini));
+  return grid;
+}
+
+async function renderMiesiac(){
+  const y = biezacy.getFullYear(), m = biezacy.getMonth();
+  $("okres").textContent = `${MIESIACE[m]} ${y}`;
+  const swieta = await wczytajSwieta(y);
+  $("widok").innerHTML = "";
+  $("widok").appendChild(siatkaMiesiaca(y, m, swieta, false));
+}
+
+async function renderRok(){
+  const y = biezacy.getFullYear();
+  $("okres").textContent = `${y}`;
+  const swieta = await wczytajSwieta(y);
+  const cont = document.createElement("div"); cont.className="rok-grid";
+  for(let m=0;m<12;m++){
+    const mini = document.createElement("div"); mini.className="mini";
+    const h = document.createElement("h3"); h.textContent = MIESIACE[m];
+    h.addEventListener("click", () => { widok="miesiac"; biezacy=new Date(y,m,1); render(); });
+    mini.appendChild(h);
+    mini.appendChild(siatkaMiesiaca(y, m, swieta, true));
+    cont.appendChild(mini);
+  }
+  $("widok").innerHTML = ""; $("widok").appendChild(cont);
+}
+
+let _aktywnyDzien = null;  // {y,m,d,swieto} — do odświeżenia panelu po akcji
+
+function pokazSzczegoly(y,m,d,reki,swieto){
+  _aktywnyDzien = {y,m,d,swieto};
+  const p = $("szczegoly"); p.classList.add("on"); p.innerHTML = "";
+  const h = document.createElement("h2"); h.style.margin="0 0 4px"; h.style.fontSize="1.05rem";
+  h.textContent = fmtDlugi(y,m,d); p.appendChild(h);
+  if(swieto){ const s=document.createElement("div"); s.className="muted"; s.textContent="Dzień wolny: "+swieto; p.appendChild(s); }
+  reki.forEach(r => {
+    const t = TYPY[r.typ] || {nazwa:r.typ, kolor:"#888"};
+    const row = document.createElement("div"); row.className="rek";
+    const dot = document.createElement("span"); dot.className="sw"; dot.style.background=t.kolor; dot.style.border="none";
+    row.appendChild(dot);
+    const naz = document.createElement("strong"); naz.textContent = t.nazwa; row.appendChild(naz);
+    const zak = document.createElement("span"); zak.className="muted"; zak.textContent = fmtZakres(r.data_od, r.data_do);
+    row.appendChild(zak);
+    const b = document.createElement("span"); b.className="badge"; b.textContent = STATUS_LABEL[r.status]||r.status; row.appendChild(b);
+    const wym = wymiarTekst(r);
+    if(wym){ const w=document.createElement("span"); w.className="muted"; w.textContent=wym; row.appendChild(w); }
+    if(r.korekta_powod){ const k=document.createElement("span"); k.className="muted"; k.textContent="korekta: "+r.korekta_powod; row.appendChild(k); }
+
+    const akcje = document.createElement("div"); akcje.className="akcje";
+    // Pliki chronione tokenem — otwieramy przez fetch z nagłówkiem, nie zwykłym linkiem.
+    const linkPliku = (tekst, url) => { const a=document.createElement("a"); a.href="#"; a.textContent=tekst;
+      a.addEventListener("click", e => { e.preventDefault(); openAuthed(url); }); return a; };
+    if(r.zrodlo === "wniosek"){
+      akcje.appendChild(linkPliku("PDF", `/api/rekordy/${r.id}/pdf`));
+    }
+    if(r.zrodlo === "reczny"){
+      if(r.ma_zalacznik) akcje.appendChild(linkPliku("Załącznik", `/api/rekordy/${r.id}/zalacznik`));
+      akcje.appendChild(przyciskZalacznik(r.id, r.ma_zalacznik));
+    }
+    if(r.status !== "zaakceptowany") akcje.appendChild(przyciskAkcji("Zaakceptuj","gro",()=>zmienStatus(r.id,"zaakceptowany")));
+    if(r.status !== "odrzucony")   akcje.appendChild(przyciskAkcji("Odrzuć","czer",()=>zmienStatus(r.id,"odrzucony")));
+    akcje.appendChild(przyciskAkcji("Koryguj okres","",()=>formularzKorekty(row,r)));
+    akcje.appendChild(przyciskUsun(r.id));
+    row.appendChild(akcje);
+    p.appendChild(row);
+  });
+  p.scrollIntoView({behavior:"smooth", block:"nearest"});
+}
+function przyciskAkcji(tekst, klasa, fn){
+  const b=document.createElement("button"); b.className="mini-btn"+(klasa?" "+klasa:""); b.textContent=tekst;
+  b.addEventListener("click", fn); return b;
+}
+// Dopięcie pliku (PDF/JPG) do rekordu ręcznego przez ukryty <input type=file> (§13.1).
+function przyciskZalacznik(id, ma){
+  const wrap = document.createElement("span");
+  const inp = document.createElement("input"); inp.type = "file";
+  inp.accept = ".pdf,.jpg,.jpeg,application/pdf,image/jpeg"; inp.style.display = "none";
+  inp.addEventListener("change", async () => {
+    if(!inp.files.length) return;
+    const fd = new FormData(); fd.append("plik", inp.files[0]);
+    const r = await api.postForm(`/api/rekordy/${id}/zalacznik`, fd);
+    if(!r.ok){ alert("Nie udało się dopiąć pliku. Dozwolone: PDF lub JPG, do 5 MB."); return; }
+    await poAkcji();
+  });
+  const b = document.createElement("button"); b.className = "mini-btn";
+  b.textContent = ma ? "Zmień załącznik" : "Dopnij plik";
+  b.addEventListener("click", () => inp.click());
+  wrap.appendChild(b); wrap.appendChild(inp);
+  return wrap;
+}
+function przyciskUsun(id){
+  const b=document.createElement("button"); b.className="mini-btn czer"; b.textContent="Usuń";
+  let pewny=false;
+  b.addEventListener("click", async () => {
+    if(!pewny){ pewny=true; b.textContent="Na pewno? kliknij ponownie"; return; }
+    await api.del(`/api/rekordy/${id}`);
+    await poAkcji();
+  });
+  return b;
+}
+async function zmienStatus(id, status){
+  await api.patchJson(`/api/rekordy/${id}/status`, {status});
+  await poAkcji();
+}
+function formularzKorekty(row, r){
+  if(row.querySelector(".mini-form")) return;  // już otwarty
+  const f=document.createElement("div"); f.className="mini-form";
+  f.appendChild(polePod("Data od","date","k_od", r.data_od||""));
+  f.appendChild(polePod("Data do","date","k_do", r.data_do||r.data_od||""));
+  f.appendChild(polePod("Powód (np. L4)","text","k_powod",""));
+  const zapisz=document.createElement("button"); zapisz.className="mini-btn prim"; zapisz.textContent="Zapisz korektę";
+  zapisz.addEventListener("click", async () => {
+    const powod = f.querySelector("#k_powod").value.trim();
+    if(!powod){ f.querySelector("#k_powod").focus(); return; }
+    await api.patchJson(`/api/rekordy/${r.id}/okres`,
+      {data_od:f.querySelector("#k_od").value, data_do:f.querySelector("#k_do").value, powod});
+    await poAkcji();
+  });
+  f.appendChild(zapisz);
+  row.appendChild(f);
+}
+function polePod(etykieta, typ, id, wartosc){
+  const d=document.createElement("div");
+  const l=document.createElement("label"); l.textContent=etykieta; d.appendChild(l);
+  const i=document.createElement("input"); i.type=typ; i.id=id; if(wartosc) i.value=wartosc; d.appendChild(i);
+  return d;
+}
+async function poAkcji(){
+  await wczytajRekordy();
+  render();
+  if(_aktywnyDzien){
+    const {y,m,d,swieto} = _aktywnyDzien;
+    const reki = rekordyNaDzien(klucz(y,m,d));
+    if(reki.length) pokazSzczegoly(y,m,d,reki,swieto);
+    else $("szczegoly").classList.remove("on");
+  }
+}
+function wymiarTekst(r){
+  if(r.godziny != null) return `${r.godziny} godz.`;
+  if(r.dni_robocze != null) return `${r.dni_robocze} dni roboczych`;
+  return "";
+}
+
+function renderLegenda(){
+  const leg = $("legenda"); leg.innerHTML = "";
+  Object.values(TYPY).forEach(t => {
+    const it=document.createElement("div"); it.className="item";
+    const sw=document.createElement("span"); sw.className="sw"; sw.style.background=t.kolor; sw.style.border="none";
+    it.appendChild(sw); it.appendChild(document.createTextNode(t.nazwa)); leg.appendChild(it);
+  });
+  const sep=document.createElement("span"); sep.textContent="·"; leg.appendChild(sep);
+  const statusy = [
+    ["zaakceptowany","pełny kolor"], ["do akceptacji","obwódka przerywana"], ["odrzucony","przekreślony"]
+  ];
+  statusy.forEach(([a]) => { const it=document.createElement("div"); it.className="item";
+    it.appendChild(document.createTextNode(a)); leg.appendChild(it); });
+  const it=document.createElement("div"); it.className="item";
+  const sw=document.createElement("span"); sw.className="sw"; sw.style.background="var(--wolne)";
+  it.appendChild(sw); it.appendChild(document.createTextNode("weekend / święto")); leg.appendChild(it);
+}
+
+// ---- §17: zaznaczanie okresu i dialog trybu ----
+function onDayClick(y,m,d,reki,swieto){
+  const k = klucz(y,m,d);
+  if(wyborStart){ zakonczWybor(k); return; }
+  if(reki.length){ pokazSzczegoly(y,m,d,reki,swieto); return; }  // dzień z rekordami → szczegóły
+  rozpocznijWybor(k);
+}
+function rozpocznijWybor(k){ wyborStart = k; $("wybor-hint").classList.remove("hidden"); render(); }
+function anulujWybor(){ if(!wyborStart) return; wyborStart = null; $("wybor-hint").classList.add("hidden"); render(); }
+function zakonczWybor(k){
+  const a = wyborStart, b = k;
+  wyborStart = null; $("wybor-hint").classList.add("hidden"); render();
+  const [od, do_] = a <= b ? [a, b] : [b, a];
+  pokazDialogOkres(od, do_);
+}
+document.addEventListener("keydown", e => { if(e.key === "Escape") anulujWybor(); });
+
+let _wybOd = null, _wybDo = null;
+function pokazDialogOkres(od, do_){
+  _wybOd = od; _wybDo = do_;
+  $("okres-modal-zakres").textContent = fmtZakres(od, do_);
+  $("okres-modal").classList.remove("hidden");
+}
+function zamknijDialogOkres(){ $("okres-modal").classList.add("hidden"); }
+$("okres-anuluj").addEventListener("click", zamknijDialogOkres);
+$("okres-wniosek").addEventListener("click", () => {
+  // Przejście do generatora z wypełnionymi datami — dalej flow generatora (w tym dialog §15).
+  window.location.href = `/nowy?data_od=${encodeURIComponent(_wybOd)}&data_do=${encodeURIComponent(_wybDo)}`;
+});
+$("okres-reczny").addEventListener("click", async () => {
+  zamknijDialogOkres();
+  await budujDodajForm();
+  $("dodaj-karta").classList.remove("hidden");
+  if($("r_od")) $("r_od").value = _wybOd;
+  if($("r_do")) $("r_do").value = _wybDo;
+  $("dodaj-karta").scrollIntoView({behavior:"smooth", block:"nearest"});
+});
+
+// ---- render + nawigacja ----
+function render(){
+  $("w-miesiac").classList.toggle("on", widok==="miesiac");
+  $("w-rok").classList.toggle("on", widok==="rok");
+  $("szczegoly").classList.remove("on");
+  (widok==="miesiac" ? renderMiesiac() : renderRok());
+}
+function przesun(krok){
+  if(widok==="miesiac") biezacy = new Date(biezacy.getFullYear(), biezacy.getMonth()+krok, 1);
+  else biezacy = new Date(biezacy.getFullYear()+krok, biezacy.getMonth(), 1);
+  render();
+}
+$("w-miesiac").addEventListener("click", ()=>{widok="miesiac"; render();});
+$("w-rok").addEventListener("click", ()=>{widok="rok"; render();});
+$("prev").addEventListener("click", ()=>przesun(-1));
+$("next").addEventListener("click", ()=>przesun(1));
+$("dzis").addEventListener("click", ()=>{biezacy=new Date(); render();});
+$("odswiez").addEventListener("click", async ()=>{ await wczytajRekordy(); render(); });
+
+// ---- dodawanie ręczne ----
+// Buduje formularz dla oglądanego roku — select „Rodzaj” tylko z typów przysługujących
+// w tym roku (Ustawienia). Wołany przy otwarciu karty, bo rok może się zmienić w nawigacji.
+async function budujDodajForm(){
+  const rok = biezacy.getFullYear();
+  const aktywne = await aktywneTypy(rok);
+  const f = $("dodaj-form"); f.innerHTML = "";
+  // §16.2: w dodawaniu ręcznym pokazujemy też typy „niegenerowalne” (dzień wolny za święto),
+  // by można było zabukować taki dzień w odpowiednim miesiącu — inaczej niż zakładki generatora.
+  const opcjeTyp = Object.entries(TYPY)
+    .filter(([id,t]) => aktywne.has(id))
+    .map(([id,t]) => `<option value="${id}">${t.nazwa}</option>`).join("");
+  if(!opcjeTyp){
+    f.innerHTML = `<p class="muted" style="margin:0">Żaden typ urlopu nie jest włączony dla roku ${rok}. ` +
+      `Włącz go w <a href="/ustawienia">Ustawieniach</a>.</p>`;
+    return;
+  }
+  const wrap = (etykieta, html) => { const d=document.createElement("div");
+    d.innerHTML = `<label>${etykieta}</label>${html}`; return d; };
+  f.appendChild(wrap("Rodzaj", `<select id="r_typ">${opcjeTyp}</select>`));
+  f.appendChild(wrap("Data od", `<input type="date" id="r_od">`));
+  f.appendChild(wrap("Data do", `<input type="date" id="r_do">`));
+  f.appendChild(wrap("Wymiar (opieka: godziny)", `<input type="text" id="r_wymiar" placeholder="np. 8" style="width:90px">`));
+  f.appendChild(wrap("Status", `<select id="r_status"><option value="zaakceptowany">zaakceptowany</option><option value="do_akceptacji">do akceptacji</option></select>`));
+  const b=document.createElement("button"); b.className="mini-btn prim"; b.textContent="Dodaj";
+  b.addEventListener("click", dodajReczny);
+  f.appendChild(b);
+}
+async function dodajReczny(){
+  const typ = $("r_typ").value;
+  const payload = { typ, status: $("r_status").value,
+    data_od: $("r_od").value, data_do: $("r_do").value };
+  const w = $("r_wymiar").value.trim();
+  if(w){ payload.wymiar = w; if(typ === "opieka") payload.forma = "godziny"; }
+  const r = await api.postJson("/api/rekordy/reczny", payload);
+  if(!r.ok){ alert("Nie udało się dodać rekordu."); return; }
+  $("dodaj-karta").classList.add("hidden");
+  await wczytajRekordy(); render();
+}
+$("dodaj-toggle").addEventListener("click", async () => {
+  const karta = $("dodaj-karta");
+  if(karta.classList.contains("hidden")) await budujDodajForm();  // dopasuj typy do oglądanego roku
+  karta.classList.toggle("hidden");
+});
+
+// ---- start ----
+(async function init(){
+  try{
+    await Promise.all([wczytajTypy(), wczytajRekordy()]);
+  }catch(e){
+    $("widok").textContent = "Nie udało się wczytać danych kalendarza.";
+    return;
+  }
+  renderLegenda();
+  render();
+})();
+</script>
+</body>
+</html>

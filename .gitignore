@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+
+# Dane runtime (baza SQLite, PDF-y, sekret podpisu JWT)
+/data/
+secret.key
+
+# Dokumentacja robocza — nie publikujemy
+/docs/
+
+# IDE
+.idea/
+*.iml
+
+# Narzędzia lokalne (usuń tę linię, jeśli chcesz wersjonować konfigurację)
+.claude/
+
+# System operacyjny
+.DS_Store
+Thumbs.db

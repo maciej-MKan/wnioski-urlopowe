@@ -1,0 +1,25 @@
+# Środowisko DEV/TEST — osobny projekt, port 8138 i osobny wolumen danych.
+# Tu prowadzimy testy manualne; produkcja (docker-compose.yml, 8137) pozostaje nietknięta.
+#
+#   docker compose -f docker-compose.dev.yml up -d --build
+#
+name: wnioski-dev
+
+services:
+  wnioski:
+    build: .
+    container_name: wnioski-urlopowe-dev
+    ports:
+      - "8138:8000"
+    environment:
+      WNIOSKI_DATA_DIR: /srv/data
+      WNIOSKI_ENV: dev
+      # Logowanie Google (§18b) — odkomentuj i wstaw dane klienta OAuth z Google Cloud.
+      # Authorized redirect URI w Google: http://localhost:8138/api/auth/google/callback
+      # GOOGLE_CLIENT_ID: "twoj-client-id.apps.googleusercontent.com"
+      # GOOGLE_CLIENT_SECRET: "twoj-secret"
+    volumes:
+      - wnioski-dane-dev:/srv/data
+
+volumes:
+  wnioski-dane-dev:   # dane testowe — całkowicie odseparowane od produkcji

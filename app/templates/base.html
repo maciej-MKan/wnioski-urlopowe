@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<style>
+  @page {
+    size: A4;
+    margin: 28mm 25mm 25mm 25mm;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "DejaVu Sans", "Liberation Sans", Arial, sans-serif;
+    font-size: 11.5pt;
+    line-height: 1.55;
+    color: #111;
+  }
+  /* Podgląd w przeglądarce odwzorowuje marginesy strony A4 */
+  @media screen {
+    body {
+      max-width: 210mm;
+      margin: 0 auto;
+      padding: 28mm 25mm 25mm 25mm;
+      background: #fff;
+    }
+  }
+  .naglowek {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 26mm;
+  }
+  .pracownik { max-width: 55%; }
+  .miejsce-data { text-align: right; white-space: nowrap; }
+  .adresat {
+    margin-left: auto;
+    width: 47%;
+    margin-bottom: 16mm;
+  }
+  .adresat .etykieta { color: #444; }
+  .tytul {
+    text-align: center;
+    font-size: 13.5pt;
+    font-weight: bold;
+    letter-spacing: .3px;
+    margin: 4mm 0 10mm 0;
+    text-transform: uppercase;
+  }
+  .tresc p { margin: 0 0 4.5mm 0; text-align: justify; }
+  .podstawa { color: #333; font-size: 10.5pt; }
+  .dane-tabela { margin: 3mm 0 3mm 0; }
+  .dane-tabela td { padding: 1mm 0; vertical-align: top; }
+  .dane-tabela td.klucz { width: 48%; color: #333; padding-right: 6mm; }
+  .adnotacje {
+    margin-top: 16mm;
+    padding-top: 4mm;
+    border-top: 1px solid #ccc;
+    color: #555;
+    font-size: 9.5pt;
+  }
+  .adnotacje .rzad { display: flex; gap: 12mm; margin-top: 8mm; }
+  .adnotacje .pole { flex: 1; border-top: 1px dotted #999; padding-top: 1.5mm; text-align: center; }
+  .zalaczniki { margin-top: 8mm; font-size: 10pt; color: #333; }
+  .zalaczniki ul { margin: 2mm 0 0 0; padding-left: 6mm; }
+  strong { font-weight: bold; }
+</style>
+</head>
+<body>
+  <div class="naglowek">
+    <div class="pracownik">
+      {% if d.imie_nazwisko %}<div><strong>{{ d.imie_nazwisko }}</strong></div>{% endif %}
+      {% if d.stanowisko %}<div>{{ d.stanowisko }}</div>{% endif %}
+    </div>
+    <div class="miejsce-data">
+      {{ d.miejscowosc }}{% if d.miejscowosc and data_dok %}, {% endif %}{{ data_dok }}
+    </div>
+  </div>
+
+  {% if d.pracodawca or d.dzial_kadr %}
+  <div class="adresat">
+    <div class="etykieta">Do:</div>
+    {% for linia in pracodawca_linie %}<div>{{ linia }}</div>{% endfor %}
+    {% if d.dzial_kadr %}<div>{{ d.dzial_kadr }}</div>{% endif %}
+  </div>
+  {% endif %}
+
+  <div class="tytul">{{ tytul }}</div>
+
+  <div class="tresc">
+    {% block tresc %}{% endblock %}
+  </div>
+
+  {% block zalaczniki %}{% endblock %}
+
+  {% block adnotacje %}
+  <div class="adnotacje">
+    <div>Decyzja pracodawcy / adnotacje:</div>
+    <div class="rzad">
+      <div class="pole">data i podpis przełożonego</div>
+      <div class="pole">data i podpis osoby zatwierdzającej</div>
+    </div>
+  </div>
+  {% endblock %}
+</body>
+</html>

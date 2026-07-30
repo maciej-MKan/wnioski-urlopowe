@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ustawienia i bilans urlopów</title>
+<link rel="stylesheet" href="/static/common.css">
+<style>
+  :root{ --plan:#c9a227; --zla:#d0453b; --track:#eef1f6; }  /* tokeny specyficzne dla bilansu */
+  @media (prefers-color-scheme: dark){ :root{ --track:#232936; } }
+  .wrap{max-width:860px;margin:0 auto;padding:28px 18px 60px}
+  h1{font-size:1.5rem;margin:0 0 4px}
+  h2{font-size:1.05rem;margin:0 0 14px}
+  .sub{color:var(--muted);margin:0 0 18px;font-size:.95rem}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px;
+        box-shadow:var(--shadow);margin-bottom:18px}
+  label{display:block;font-size:.82rem;color:var(--muted);margin-bottom:5px;font-weight:600}
+  input[type=number]{width:120px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;
+       background:var(--bg);color:var(--ink);font-size:.95rem}
+  .rok-wybor{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+  .typ{padding:12px 0;border-top:1px solid var(--line)}
+  .typ:first-of-type{border-top:none}
+  .typ .naz{font-weight:600;display:flex;align-items:center;gap:8px}
+  .sw{width:14px;height:14px;border-radius:4px}
+  .pola{display:flex;gap:18px;flex-wrap:wrap;margin-top:8px}
+  .chk{display:flex;align-items:center;gap:8px;font-weight:600;color:var(--ink)}
+  .chk input{width:auto}
+  button{border:none;border-radius:11px;padding:11px 18px;font-size:.95rem;font-weight:700;cursor:pointer}
+  .primary{background:var(--accent);color:#fff}
+  .primary:hover{background:var(--accent-d)}
+  .flash{color:var(--ok);font-size:.85rem;font-weight:600;margin-left:10px}
+  .hidden{display:none}
+  /* profil */
+  #profil-form .profil-pole{margin-bottom:12px}
+  #profil-form input[type=text],#profil-form textarea{width:100%;padding:9px 11px;border:1px solid var(--line);
+       border-radius:10px;background:var(--bg);color:var(--ink);font-size:.95rem;font-family:inherit;box-sizing:border-box}
+  #profil-form textarea{min-height:80px;resize:vertical}
+  /* bilans */
+  .poz{margin:14px 0}
+  .poz .top{display:flex;justify-content:space-between;font-size:.9rem;margin-bottom:5px;gap:10px;flex-wrap:wrap}
+  .poz .ety{font-weight:600}
+  .poz .liczby{color:var(--muted)}
+  .bar{height:14px;background:var(--track);border-radius:8px;overflow:hidden;display:flex}
+  .bar .uzyte{background:var(--ok)}
+  .bar .plan{background:var(--plan)}
+  .bar .uzyte.over{background:var(--zla)}
+  .pozostalo{font-weight:600}
+  .muted{color:var(--muted);font-size:.85rem}
+  .poz.krotki{border-left:3px solid var(--plan);padding-left:10px}
+  .badge-term{display:inline-block;font-size:.7rem;font-weight:700;color:#7a5c00;background:#fbeeb8;
+       border-radius:20px;padding:1px 8px;margin-left:8px}
+  @media (prefers-color-scheme: dark){ .badge-term{color:#20242e;background:#d8b64a} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav class="topnav"><a href="/">Kalendarz</a><a href="/nowy">Nowy wniosek</a><a href="/ustawienia" class="on">Ustawienia</a></nav>
+  <h1>Ustawienia i bilans</h1>
+  <p class="sub">Ustaw przysługujące limity na dany rok, a poniżej zobacz wykorzystanie.</p>
+
+  <div class="card">
+    <h2>Mój profil</h2>
+    <p class="muted" style="margin:0 0 14px">Domyślne dane wstawiane do wniosków — wspólne dla przeglądarki i aplikacji mobilnej.</p>
+    <div id="profil-form"></div>
+    <div style="margin-top:6px">
+      <button class="primary" id="zapisz-profil">Zapisz profil</button>
+      <span class="flash hidden" id="profil-zapisano">zapisano</span>
+    </div>
+  </div>
+
+  <div class="rok-wybor">
+    <label style="margin:0">Rok</label>
+    <input type="number" id="rok" step="1" style="width:110px">
+  </div>
+
+  <div class="card">
+    <h2>Przysługujące limity</h2>
+    <div id="formularz"></div>
+    <div class="typ" style="border-top:1px solid var(--line)">
+      <label class="chk"><input type="checkbox" id="jednozmianowy">System jednozmianowy pon–pt — doliczaj dni wolne za święta w sobotę</label>
+      <p class="muted" style="margin:6px 0 0">Dodatkowy dzień wolny za każde święto wypadające w sobotę (art. 130 § 2 K.p.), do wykorzystania do końca roku. Wyłącz, jeśli pracujesz w innym systemie czasu pracy.</p>
+    </div>
+    <div style="margin-top:14px">
+      <button class="primary" id="zapisz">Zapisz limity</button>
+      <span class="flash hidden" id="zapisano">zapisano</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Bilans wykorzystania</h2>
+    <div id="bilans"></div>
+    <p class="muted" id="bilans-legenda">Zielony — wykorzystane (zaakceptowane); żółty — zaplanowane (do akceptacji).</p>
+  </div>
+</div>
+
+<script src="/static/common.js"></script>
+<script>
+// $, api — z /static/common.js
+let TYPY = [];         // z /api/typy (metadane typów)
+let WSPOLNE = [];      // pola wspólne rejestru (do profilu)
+const fmt = n => (n==null ? "—" : (Number.isInteger(n) ? String(n) : n.toFixed(1)));
+
+// ---- profil użytkownika (dane wspólne w bazie) ----
+function renderProfil(dane){
+  const cont = $("profil-form"); cont.innerHTML = "";
+  WSPOLNE.forEach(f => {
+    if(f.name === "data") return;  // data sporządzenia jest per-wniosek
+    const d = document.createElement("div"); d.className = "profil-pole";
+    const l = document.createElement("label"); l.textContent = f.label; d.appendChild(l);
+    const inp = f.typ_pola === "textarea" ? document.createElement("textarea") : document.createElement("input");
+    if(inp.tagName === "INPUT") inp.type = "text";
+    inp.id = "p_" + f.name;
+    if(f.placeholder) inp.placeholder = f.placeholder;
+    if(dane[f.name] !== undefined) inp.value = dane[f.name];
+    d.appendChild(inp); cont.appendChild(d);
+  });
+}
+function zbierzProfil(){
+  const p = {};
+  WSPOLNE.forEach(f => { if(f.name !== "data"){ const e = $("p_" + f.name); if(e) p[f.name] = e.value; } });
+  return p;
+}
+async function ladujProfil(){ renderProfil(await api.get("/api/profil")); }
+
+// ---- formularz ustawień ----
+function renderFormularz(uprawnienia){
+  const mapa = {}; uprawnienia.forEach(u => mapa[u.typ] = u);
+  const cont = $("formularz"); cont.innerHTML = "";
+  TYPY.forEach(t => {
+    if(t.generowalny === false) return;  // dzień wolny za święto ma osobny przełącznik
+    const u = mapa[t.id] || {};
+    const box = document.createElement("div"); box.className="typ"; box.dataset.typ=t.id;
+    const naz = document.createElement("div"); naz.className="naz";
+    const sw = document.createElement("span"); sw.className="sw"; sw.style.background=t.kolor; naz.appendChild(sw);
+    naz.appendChild(document.createTextNode(t.nazwa));
+    box.appendChild(naz);
+
+    const pola = document.createElement("div"); pola.className="pola";
+    if(t.ma_zalegly){
+      pola.appendChild(numPole("limit_dni", "Dni przysługujące w roku", u.limit_dni));
+      pola.appendChild(numPole("bilans_z_przeniesienia", "Zaległy z poprzedniego roku (dni)", u.bilans_z_przeniesienia));
+    } else {
+      const l = document.createElement("label"); l.className="chk";
+      const c = document.createElement("input"); c.type="checkbox"; c.dataset.pole="aktywny";
+      c.checked = !!u.aktywny;
+      l.appendChild(c); l.appendChild(document.createTextNode(`Przysługuje (${t.limit_domyslny||""})`));
+      pola.appendChild(l);
+    }
+    box.appendChild(pola);
+    cont.appendChild(box);
+  });
+}
+function numPole(nazwa, etykieta, wartosc){
+  const d = document.createElement("div");
+  const l = document.createElement("label"); l.textContent = etykieta; d.appendChild(l);
+  const i = document.createElement("input"); i.type="number"; i.step="1"; i.min="0";
+  i.dataset.pole = nazwa; if(wartosc!=null) i.value = wartosc;
+  d.appendChild(i); return d;
+}
+function zbierzPayload(){
+  const payload = {};
+  document.querySelectorAll(".typ").forEach(box => {
+    const wpis = {};
+    box.querySelectorAll("[data-pole]").forEach(el => {
+      if(el.type === "checkbox") wpis.aktywny = el.checked;
+      else if(el.value !== "") wpis[el.dataset.pole] = el.value;
+    });
+    // typy z pulą są zawsze aktywne
+    if(box.querySelector('[data-pole="limit_dni"]')) wpis.aktywny = true;
+    payload[box.dataset.typ] = wpis;
+  });
+  // §14: przełącznik systemu jednozmianowego (dni wolne za święta w sobotę)
+  payload.wolne_za_swieta = { aktywny: $("jednozmianowy").checked };
+  return payload;
+}
+
+// ---- bilans ----
+function renderBilans(pozycje){
+  const cont = $("bilans"); cont.innerHTML = "";
+  if(!pozycje.length){ cont.innerHTML = '<p class="muted">Brak aktywnych limitów dla tego roku.</p>'; return; }
+  pozycje.forEach(p => {
+    const box = document.createElement("div"); box.className = "poz" + (p.krotki_termin ? " krotki" : "");
+    const top = document.createElement("div"); top.className="top";
+    const ety = document.createElement("span"); ety.className="ety"; ety.textContent = p.etykieta;
+    if(p.krotki_termin){ const b=document.createElement("span"); b.className="badge-term"; b.textContent="krótszy termin ważności"; ety.appendChild(b); }
+    const liczby = document.createElement("span"); liczby.className="liczby";
+    let txt = `${fmt(p.wykorzystano)}${p.limit!=null?" / "+fmt(p.limit):""} ${p.jednostka}`;
+    if(p.zaplanowano) txt += ` (+${fmt(p.zaplanowano)} zaplanowane)`;
+    if(p.pozostalo!=null) txt += ` · pozostało ${fmt(p.pozostalo)}`;
+    liczby.textContent = txt;
+    top.appendChild(ety); top.appendChild(liczby); box.appendChild(top);
+
+    // Pozycja §14 jest informacyjna (do wykorzystania do końca roku) — bez paska wykorzystania.
+    if(p.krotki_termin){
+      const n=document.createElement("div"); n.className="muted"; n.textContent="Do wykorzystania do końca miesiąca, w którym wypada święto.";
+      box.appendChild(n); cont.appendChild(box); return;
+    }
+
+    const bar = document.createElement("div"); bar.className="bar";
+    const baza = p.limit!=null && p.limit>0 ? p.limit : Math.max(p.wykorzystano + p.zaplanowano, 1);
+    const over = p.limit!=null && p.wykorzystano > p.limit;
+    const uzyte = document.createElement("div"); uzyte.className="uzyte"+(over?" over":"");
+    uzyte.style.width = Math.min(100, 100*p.wykorzystano/baza) + "%";
+    const plan = document.createElement("div"); plan.className="plan";
+    plan.style.width = Math.min(100 - 100*p.wykorzystano/baza, 100*p.zaplanowano/baza) + "%";
+    bar.appendChild(uzyte); bar.appendChild(plan); box.appendChild(bar);
+    cont.appendChild(box);
+  });
+}
+
+// ---- ładowanie / zapis ----
+async function odswiez(){
+  const rok = $("rok").value;
+  const [ust, bil] = await Promise.all([api.get(`/api/ustawienia?rok=${rok}`), api.get(`/api/bilans?rok=${rok}`)]);
+  renderFormularz(ust.uprawnienia);
+  $("jednozmianowy").checked = ust.jednozmianowy !== false;  // domyślnie włączone
+  renderBilans(bil);
+}
+$("rok").addEventListener("change", odswiez);
+$("zapisz").addEventListener("click", async () => {
+  const rok = $("rok").value;
+  await api.putJson(`/api/ustawienia?rok=${rok}`, zbierzPayload());
+  const s=$("zapisano"); s.classList.remove("hidden"); setTimeout(()=>s.classList.add("hidden"),1400);
+  await odswiez();
+});
+$("zapisz-profil").addEventListener("click", async () => {
+  const r = await api.putJson("/api/profil", zbierzProfil());
+  if(!r.ok){ alert("Nie udało się zapisać profilu."); return; }
+  const s=$("profil-zapisano"); s.classList.remove("hidden"); setTimeout(()=>s.classList.add("hidden"),1400);
+});
+
+(async function init(){
+  const rejestr = await api.get("/api/typy");
+  TYPY = rejestr.typy;
+  WSPOLNE = rejestr.wspolne || [];
+  $("rok").value = new Date().getFullYear();
+  await Promise.all([odswiez(), ladujProfil()]);
+})();
+</script>
+</body>
+</html>

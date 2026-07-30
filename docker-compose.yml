@@ -1,0 +1,20 @@
+services:
+  wnioski:
+    build: .
+    container_name: wnioski-urlopowe
+    ports:
+      - "8137:8000"
+    environment:
+      WNIOSKI_DATA_DIR: /srv/data
+      WNIOSKI_ENV: prod
+      # Konto właściciela przy migracji starej bazy — ustaw znane hasło zamiast losowego z logów:
+      # WNIOSKI_OWNER_PASSWORD: "twoje-haslo"
+      # Logowanie Google (§18b) — Authorized redirect URI: http://localhost:8137/api/auth/google/callback
+      # GOOGLE_CLIENT_ID: "..."
+      # GOOGLE_CLIENT_SECRET: "..."
+    volumes:
+      - wnioski-dane:/srv/data
+    restart: unless-stopped
+
+volumes:
+  wnioski-dane:   # dane produkcyjne — osobny wolumen, testy tu nie sięgają

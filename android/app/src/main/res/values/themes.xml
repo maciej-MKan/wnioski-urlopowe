@@ -1,0 +1,4 @@
+<resources>
+    <!-- Motyw okna; całą treść rysuje Compose (MaterialTheme). -->
+    <style name="Theme.WnioskiUrlopowe" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

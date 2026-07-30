@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block tresc %}
+  {% set liczba_dni = d.liczba_dni or (dni_kalendarzowe(d.data_od, d.data_do) or "") %}
+  <p>Na podstawie art.&nbsp;152 i&nbsp;art.&nbsp;163 Kodeksu pracy zwracam się z uprzejmą prośbą
+     o udzielenie mi urlopu wypoczynkowego{% if liczba_dni %} w wymiarze <strong>{{ liczba_dni }}</strong>
+     {{ liczba_dni | dni_slowo }}{% endif %} w terminie
+     {% if d.data_od %}od <strong>{{ d.data_od | krotko }}</strong>{% endif %}
+     {% if d.data_do %} do <strong>{{ d.data_do | krotko }}</strong>{% endif %}
+     {%- if not d.data_od and not d.data_do %}od dnia ..................... do dnia .....................{% endif %}.</p>
+
+  {% set rok = d.rok_rozliczenia or (d.data_od[:4] if d.data_od else '') %}
+  <p class="podstawa">Za okres nieobecności proszę o rozliczenie urlopu z przysługującego mi
+     wymiaru urlopu wypoczynkowego{% if rok %} za rok <strong>{{ rok }}</strong>{% endif %}.</p>
+{% endblock %}

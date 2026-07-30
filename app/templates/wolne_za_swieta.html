@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block tresc %}
+  {% set liczba_dni = dni_kalendarzowe(d.data_od, d.data_do) %}
+  {% set robocze = liczba_dni %}
+  <p>Na podstawie art.&nbsp;130 §&nbsp;2 Kodeksu pracy zwracam się z uprzejmą prośbą o udzielenie mi
+     dnia wolnego od pracy przysługującego w zamian za święto przypadające w sobotę
+     (obniżające wymiar czasu pracy w okresie rozliczeniowym)
+     {% if d.data_od and d.data_do and d.data_od != d.data_do %}
+       w terminie od <strong>{{ d.data_od | krotko }}</strong> do <strong>{{ d.data_do | krotko }}</strong>{% elif d.data_od %}
+       w dniu <strong>{{ d.data_od | krotko }}</strong>{% else %}
+       w dniu ..................... {% endif %}.</p>
+
+  <p class="podstawa">Powyższy dzień wolny nie jest urlopem wypoczynkowym i nie obniża
+     przysługującego mi wymiaru urlopu.</p>
+{% endblock %}
