@@ -48,7 +48,11 @@ fun CreateScreen(
     onBack: () -> Unit,
     onDone: () -> Unit,
 ) {
+    // Świeży klucz przy każdym wejściu na ekran → nowa instancja VM (nie dziedziczymy stanu
+    // `done`/`created` z poprzedniego wniosku — §20.5). VM w zakresie Activity inaczej by przetrwał.
+    val vmKey = remember { java.util.UUID.randomUUID().toString() }
     val vm: CreateViewModel = viewModel(
+        key = vmKey,
         factory = viewModelFactory {
             initializer { CreateViewModel(container.applications, prefillFrom, prefillTo) }
         }

@@ -17,6 +17,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -42,7 +43,11 @@ fun ManualScreen(
     onBack: () -> Unit,
     onDone: () -> Unit,
 ) {
+    // Świeży klucz przy każdym wejściu → nowa instancja VM (bez dziedziczenia stanu `done` z
+    // poprzedniego dodania — analogicznie do §20.5 w CreateScreen).
+    val vmKey = remember { java.util.UUID.randomUUID().toString() }
     val vm: ManualViewModel = viewModel(
+        key = vmKey,
         factory = viewModelFactory {
             initializer { ManualViewModel(container.applications, prefillFrom, prefillTo) }
         }
