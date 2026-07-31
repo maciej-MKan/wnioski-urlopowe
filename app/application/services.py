@@ -98,6 +98,7 @@ class LeaveService:
         (with its own PDF), the rest stays annual leave. Different legal basis → two documents.
         """
         data = self._registry.validate(payload)
+        self._require_sane_period(data)  # data_do ≥ data_od, liczba dni ≤ zakres
         self._require_paternity_rules(data)  # §20.2: urlop ojcowski — min./maks. część, suma
         period = DateRange.from_strings(data.get("data_od"), data.get("data_do"))
         total = working_days(period) or 0
@@ -229,6 +230,24 @@ class LeaveService:
                     f"({r.period.start_iso}–{r.period.end_iso}). W jednym dniu może być tylko jeden urlop."
                 )
 
+    def _require_sane_period(self, data: dict) -> None:
+        """Poprawność zakresu dat: data_do nie może być wcześniejsza niż data_od, a wpisana liczba
+        dni nie może przekraczać liczby dni kalendarzowych zakresu (jeden dzień = od == do dozwolone).
+        """
+        period = DateRange.from_strings(data.get("data_od"), data.get("data_do"))
+        if period.complete and not period.valid:
+            raise ValueError("Data końcowa nie może być wcześniejsza niż data początkowa.")
+        span = period.calendar_days()
+        if span is None:
+            return
+        # Liczba dni: pole opisowe wypoczynkowego (`liczba_dni`) lub wymiar dniowy (opieka forma=dni).
+        raw = data.get("liczba_dni") or (data.get("wymiar") if data.get("forma") == "dni" else None)
+        entered = _number(raw, None)
+        if entered is not None and entered > span:
+            raise ValueError(
+                f"Liczba dni ({entered}) nie może przekraczać liczby dni kalendarzowych zakresu ({span})."
+            )
+
     def save(self, data: dict, pdf: bytes) -> LeaveRecord:
         """Builds an aggregate from the generated application and persists it (idempotent by content)."""
         days, hours = self._amount(data)
@@ -276,6 +295,7 @@ class LeaveService:
         record.correct_period(DateRange.from_strings(start, end), reason, self._clock())
         # The amount is computed from the new range — we also update the dates in the source data.
         record.data = {**record.data, "data_od": record.period.start_iso or "", "data_do": record.period.end_iso or ""}
+        self._require_sane_period(record.data)  # data_do ≥ data_od, liczba dni ≤ zakres
         self._require_paternity_rules(record.data, exclude_id=record_id)  # §20.2: nie omijaj walidacji korektą
         self._require_no_overlap(record, exclude_id=record_id)  # §20.4
         record.working_days, record.hours = self._amount(record.data)
@@ -286,6 +306,7 @@ class LeaveService:
         data = self._registry.validate(payload)
         if data["typ"] == WEEKEND_OFF_ID:
             self._require_weekend_capacity(data)  # §16.1: only within the holiday's month, up to capacity
+        self._require_sane_period(data)  # data_do ≥ data_od, liczba dni ≤ zakres
         self._require_paternity_rules(data)  # §20.2
         days, hours = self._amount(data)
         record = LeaveRecord.manual(data, now=self._clock(), status=Status(status), working_days=days, hours=hours)

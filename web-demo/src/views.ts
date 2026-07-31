@@ -24,6 +24,20 @@ function cellColor(rec: LeaveRecord | undefined): string {
   return base + alphaHex[rec.status];
 }
 
+/** Walidacja zakresu dat i wpisanej liczby dni (te same reguły co backend pełnej wersji). */
+function validatePeriod(v: Record<string, string>): string | null {
+  const od = v.data_od, doo = v.data_do;
+  if (od && doo && doo < od) return "Data końcowa nie może być wcześniejsza niż data początkowa.";
+  if (od && doo) {
+    const span = calendarDays(od, doo);
+    const raw = v.liczba_dni || (v.forma === "dni" ? v.wymiar : "");
+    const n = parseFloat((raw || "").replace(",", "."));
+    if (Number.isFinite(n) && n > span)
+      return `Liczba dni (${n}) nie może przekraczać liczby dni kalendarzowych zakresu (${span}).`;
+  }
+  return null;
+}
+
 const pad = (n: number) => String(n).padStart(2, "0");
 const iso = (y: number, m: number, d: number) => `${y}-${pad(m)}-${pad(d)}`;
 const recordsOn = (day: string): LeaveRecord[] =>
@@ -128,6 +142,7 @@ export function viewCreate(root: HTMLElement, st: AppState, rerender: () => void
     <div id="fields"></div>
     <div style="margin-top:8px"><button class="prim" id="submit">Utwórz wniosek</button>
       <span class="flash hidden" id="ok">dodano</span></div>
+    <div class="hint" id="err" style="color:#c0392b;margin-top:6px"></div>
     <div id="post" style="margin-top:12px"></div>
   </div>`;
 
@@ -175,6 +190,10 @@ export function viewCreate(root: HTMLElement, st: AppState, rerender: () => void
 
   root.querySelector("#submit")!.addEventListener("click", () => {
     collect();
+    const errEl = root.querySelector("#err") as HTMLElement;
+    const err = validatePeriod(values);
+    if (err) { errEl.textContent = err; return; }
+    errEl.textContent = "";
     const rec = backend.create(activeTyp, { ...values, typ: activeTyp });
     const ok = root.querySelector("#ok")!; ok.classList.remove("hidden");
     root.querySelector("#post")!.innerHTML =

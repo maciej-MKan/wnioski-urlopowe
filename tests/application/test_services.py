@@ -153,6 +153,28 @@ def test_idempotent_resave_not_blocked_as_overlap(service):
     assert len(service.list_records()) == 1
 
 
+def test_reversed_dates_rejected(service):
+    with pytest.raises(ValueError):
+        service.add_manual({"typ": "wypoczynkowy", "data_od": "2026-06-10", "data_do": "2026-06-05"})
+
+
+def test_same_day_period_allowed(service):
+    service.add_manual({"typ": "wypoczynkowy", "data_od": "2026-06-10", "data_do": "2026-06-10"})
+    assert len(service.list_records()) == 1
+
+
+def test_entered_days_exceeding_range_rejected(service):
+    with pytest.raises(ValueError):
+        service.add_manual({"typ": "wypoczynkowy", "liczba_dni": "1500",
+                            "data_od": "2026-06-01", "data_do": "2026-06-03"})
+
+
+def test_correction_to_reversed_dates_rejected(service):
+    rec = service.add_manual({"typ": "wypoczynkowy", "data_od": "2026-06-01", "data_do": "2026-06-05"})
+    with pytest.raises(ValueError):
+        service.correct_period(rec.id, "2026-06-05", "2026-06-01", "pomyłka")
+
+
 def test_default_settings(service):
     ent = {e.leave_type: e for e in service.settings(2026)}
     assert ent["wypoczynkowy"].active is True
