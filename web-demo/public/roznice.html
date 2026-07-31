@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DEMO vs pełna wersja</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 20px;
+      color: #1b2430; line-height: 1.55; }
+    h1 { font-size: 1.4rem; } h2 { font-size: 1.05rem; margin-top: 26px; }
+    code { background: #eef1f6; padding: 1px 5px; border-radius: 5px; }
+    .tag { display: inline-block; background: #c9522c; color: #fff; font-weight: 700;
+      padding: 2px 10px; border-radius: 999px; letter-spacing: .5px; font-size: .8rem; }
+    ul { padding-left: 20px; } li { margin: 4px 0; }
+    @media (prefers-color-scheme: dark) { body { background: #12151c; color: #eef1f6; } code { background: #2c3340; } }
+  </style>
+</head>
+<body>
+  <p><span class="tag">DEMO</span></p>
+  <h1>Wersja demonstracyjna — czego brakuje względem pełnej aplikacji</h1>
+  <p>To <b>cienkie demo</b> klienta web działające w całości w przeglądarce (GitHub Pages), bez
+    serwera. Ma pokazać wygląd i przepływ, a nie zastąpić pełną aplikację.</p>
+
+  <h2>Nie działa / uproszczone w demie</h2>
+  <ul>
+    <li><b>Brak trwałości danych</b> — wszystko trzyma się w pamięci karty i <b>znika po odświeżeniu</b>
+      (brak bazy, brak eksportu/importu).</li>
+    <li><b>PDF</b> — zamiast dokumentu z WeasyPrint jest uproszczony <b>podgląd HTML + druk</b>
+      („Drukuj → Zapisz jako PDF"). Układ i jakość nie odpowiadają pełnej wersji.</li>
+    <li><b>Brak logowania i kont</b> — nie ma rejestracji, JWT, logowania Google ani wielodostępu;
+      jest jeden lokalny profil.</li>
+    <li><b>Brak synchronizacji</b> z aplikacją mobilną (Android) i między urządzeniami.</li>
+    <li><b>Święta</b> — statyczna lista dla roku 2026 (w pełnej wersji liczone algorytmem dla dowolnego roku).</li>
+    <li><b>Uproszczone reguły</b> — brak części zaawansowanej logiki (m.in. dni wolne za święto w sobotę,
+      pełna walidacja urlopu ojcowskiego, blokada nakładania okresów). Saldo i liczenie dni są podstawowe.</li>
+    <li><b>Ustawienia limitów</b> — nieedytowalne w demie (wartości domyślne).</li>
+  </ul>
+
+  <h2>Co działa</h2>
+  <ul>
+    <li>Kalendarz miesięczny z kolorami urlopów, świętami i panelem dnia (akcje: zaakceptuj/odrzuć/usuń).</li>
+    <li>Tworzenie wniosku z formularza generowanego z rejestru typów, z prefillem dat i danych profilu.</li>
+    <li>Saldo (limit / wykorzystano / zaplanowano / pozostało).</li>
+    <li>Edycja lokalnego profilu (dane wspólne wstawiane do wniosków).</li>
+  </ul>
+
+  <h2>Pełna wersja</h2>
+  <p>Backend FastAPI (Python) + SQLite + WeasyPrint, wielodostęp z logowaniem, wspólne dane z klientem
+    Android. Kod: <code>github.com/maciej-MKan/wnioski-urlopowe</code>.</p>
+</body>
+</html>

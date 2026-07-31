@@ -1,0 +1,16 @@
+{
+  "name": "wnioski-urlopowe-web-demo",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Cienkie demo klienta web (dane tylko w pamięci) — GitHub Pages.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4",
+    "vite": "^5.4.2"
+  }
+}

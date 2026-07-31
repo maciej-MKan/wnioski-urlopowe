@@ -1,0 +1,80 @@
+:root {
+  --bg: #f4f6fb; --card: #fff; --line: #e2e6ef; --ink: #1b2430; --muted: #5c6675;
+  --accent: #2f5bd7; --accent-d: #254bb5; --ok: #1f9d55; --shadow: 0 6px 24px rgba(20, 30, 60, .08);
+  --demo: #c9522c;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #12151c; --card: #1b1f29; --line: #2c3340; --ink: #eef1f6; --muted: #9aa5b5;
+    --accent: #5b83f0; --accent-d: #4a70dc; --shadow: 0 6px 24px rgba(0, 0, 0, .35);
+  }
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  background: var(--bg); color: var(--ink); line-height: 1.5; }
+a { color: var(--accent); }
+.wrap { max-width: 880px; margin: 0 auto; padding: 16px 16px 60px; }
+
+/* Baner DEMO */
+.demo-banner { background: var(--demo); color: #fff; padding: 10px 16px; font-size: .9rem;
+  display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.demo-banner b { letter-spacing: .5px; }
+.demo-banner a { color: #fff; text-decoration: underline; }
+
+.topnav { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0; }
+.topnav button { padding: 8px 14px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--card); font-weight: 600; font-size: .9rem; cursor: pointer; color: var(--ink);
+  box-shadow: var(--shadow); }
+.topnav button.on { border-color: var(--accent); outline: 2px solid var(--accent); }
+
+h1 { font-size: 1.4rem; margin: 4px 0; }
+h2 { font-size: 1.05rem; margin: 0 0 12px; }
+.sub { color: var(--muted); margin: 0 0 16px; font-size: .92rem; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px;
+  box-shadow: var(--shadow); margin-bottom: 16px; }
+
+label { display: block; font-size: .8rem; color: var(--muted); margin-bottom: 5px; font-weight: 600; }
+input, select, textarea { width: 100%; padding: 9px 11px; border: 1px solid var(--line);
+  border-radius: 10px; background: var(--bg); color: var(--ink); font-size: .95rem; font-family: inherit; }
+textarea { min-height: 76px; resize: vertical; }
+.field { margin-bottom: 12px; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.grid .full { grid-column: 1 / -1; }
+.hint { font-size: .78rem; color: var(--muted); margin-top: 4px; }
+
+button.prim { background: var(--accent); color: #fff; border: none; border-radius: 11px;
+  padding: 11px 18px; font-weight: 700; cursor: pointer; font-size: .95rem; }
+button.prim:hover { background: var(--accent-d); }
+button.ghost { background: transparent; border: 1px solid var(--line); color: var(--ink);
+  border-radius: 10px; padding: 8px 14px; font-weight: 600; cursor: pointer; }
+.tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.tab { padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--card);
+  cursor: pointer; font-weight: 600; font-size: .85rem; color: var(--ink); }
+.tab.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* Kalendarz */
+.cal-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.cal-head .title { font-weight: 700; flex: 1; text-align: center; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.cal-dow { text-align: center; font-size: .72rem; color: var(--muted); padding: 4px 0; }
+.cal-cell { aspect-ratio: 1; border-radius: 8px; padding: 4px 6px; font-size: .8rem;
+  border: 1px solid transparent; cursor: pointer; }
+.cal-cell.empty { background: transparent; cursor: default; }
+.cal-cell.weekend { background: color-mix(in srgb, var(--line) 55%, transparent); }
+.cal-cell.sel { outline: 2px solid var(--accent); }
+
+.record-row { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0;
+  border-top: 1px solid var(--line); align-items: center; flex-wrap: wrap; }
+.badge { font-size: .72rem; padding: 2px 8px; border-radius: 999px; background: var(--line); color: var(--ink); }
+.actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* Saldo */
+.metrics { display: flex; gap: 12px; margin-top: 8px; }
+.metric { flex: 1; text-align: center; }
+.metric .lab { font-size: .72rem; color: var(--muted); }
+.metric .val { font-weight: 700; }
+.metric.hl .val { color: var(--accent); }
+.muted { color: var(--muted); font-size: .85rem; }
+.flash { color: var(--ok); font-weight: 600; font-size: .85rem; margin-left: 10px; }
+.hidden { display: none; }
