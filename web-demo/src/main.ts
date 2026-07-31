@@ -1,6 +1,6 @@
 import "./styles.css";
 import { seed } from "./store";
-import { viewCalendar, viewCreate, viewSettings, type AppState } from "./views";
+import { viewCalendar, viewCreate, viewSaldo, viewUstawienia, type AppState } from "./views";
 
 seed(); // dane demonstracyjne w pamięci
 
@@ -9,6 +9,7 @@ const st: AppState = { view: "kalendarz", ym: { y: 2026, m: 7 }, sel: null, pref
 const NAV: { view: AppState["view"]; label: string }[] = [
   { view: "kalendarz", label: "Kalendarz" },
   { view: "nowy", label: "Nowy wniosek" },
+  { view: "saldo", label: "Saldo" },
   { view: "ustawienia", label: "Ustawienia" },
 ];
 
@@ -40,7 +41,8 @@ function render(): void {
   const view = appEl.querySelector<HTMLElement>("#view")!;
   if (st.view === "kalendarz") viewCalendar(view, st, render);
   else if (st.view === "nowy") viewCreate(view, st, render);
-  else viewSettings(view, render);
+  else if (st.view === "saldo") viewSaldo(view);
+  else viewUstawienia(view, render);
 }
 
 render();

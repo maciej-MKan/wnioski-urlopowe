@@ -2,7 +2,7 @@ import { backend } from "./backend";
 import { STATUS_LABEL, calendarDays, type LeaveRecord, type Status } from "./domain";
 import { typeById, type Field } from "./registry";
 
-export type View = "kalendarz" | "nowy" | "ustawienia";
+export type View = "kalendarz" | "nowy" | "saldo" | "ustawienia";
 export type AppState = {
   view: View;
   ym: { y: number; m: number }; // m: 1-12
@@ -205,12 +205,18 @@ export function viewCreate(root: HTMLElement, st: AppState, rerender: () => void
   });
 }
 
-// ---------------- Ustawienia (Mój profil + Bilans) ----------------
-export function viewSettings(root: HTMLElement, rerender: () => void): void {
-  root.innerHTML = `<h1 style="margin:0 0 14px">Ustawienia i bilans</h1>
-    <div id="_profil"></div><div id="_bilans"></div>`;
-  renderProfileCard(root.querySelector<HTMLElement>("#_profil")!, rerender);
+// ---------------- Saldo (podgląd bilansu) ----------------
+export function viewSaldo(root: HTMLElement): void {
+  root.innerHTML = `<h1 style="margin:0 0 6px">Saldo</h1>
+    <p class="sub">Podgląd wykorzystania urlopu w 2026. Konfigurację ustawisz w Ustawieniach.</p>
+    <div id="_bilans"></div>`;
   renderBalanceCards(root.querySelector<HTMLElement>("#_bilans")!);
+}
+
+// ---------------- Ustawienia (konfiguracja: Mój profil) ----------------
+export function viewUstawienia(root: HTMLElement, rerender: () => void): void {
+  root.innerHTML = `<h1 style="margin:0 0 14px">Ustawienia</h1><div id="_profil"></div>`;
+  renderProfileCard(root.querySelector<HTMLElement>("#_profil")!, rerender);
 }
 
 function renderBalanceCards(root: HTMLElement): void {

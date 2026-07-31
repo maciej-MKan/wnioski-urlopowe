@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Saldo urlopów</title>
+<link rel="stylesheet" href="/static/common.css">
+<style>
+  :root{ --plan:#c9a227; --zla:#d0453b; --track:#eef1f6; }  /* tokeny specyficzne dla bilansu */
+  @media (prefers-color-scheme: dark){ :root{ --track:#232936; } }
+  .wrap{max-width:860px;margin:0 auto;padding:28px 18px 60px}
+  h1{font-size:1.5rem;margin:0 0 4px}
+  h2{font-size:1.05rem;margin:0 0 14px}
+  .sub{color:var(--muted);margin:0 0 18px;font-size:.95rem}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px;
+        box-shadow:var(--shadow);margin-bottom:18px}
+  label{display:block;font-size:.82rem;color:var(--muted);margin-bottom:5px;font-weight:600}
+  input[type=number]{width:120px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;
+       background:var(--bg);color:var(--ink);font-size:.95rem}
+  .rok-wybor{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+  .muted{color:var(--muted);font-size:.85rem}
+  /* bilans */
+  .poz{margin:14px 0}
+  .poz .top{display:flex;justify-content:space-between;font-size:.9rem;margin-bottom:5px;gap:10px;flex-wrap:wrap}
+  .poz .ety{font-weight:600}
+  .poz .liczby{color:var(--muted)}
+  .bar{height:14px;background:var(--track);border-radius:8px;overflow:hidden;display:flex}
+  .bar .uzyte{background:var(--ok)}
+  .bar .plan{background:var(--plan)}
+  .bar .uzyte.over{background:var(--zla)}
+  .poz.krotki{border-left:3px solid var(--plan);padding-left:10px}
+  .badge-term{display:inline-block;font-size:.7rem;font-weight:700;color:#7a5c00;background:#fbeeb8;
+       border-radius:20px;padding:1px 8px;margin-left:8px}
+  @media (prefers-color-scheme: dark){ .badge-term{color:#20242e;background:#d8b64a} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav class="topnav"><a href="/">Kalendarz</a><a href="/nowy">Nowy wniosek</a><a href="/saldo" class="on">Saldo</a><a href="/ustawienia">Ustawienia</a></nav>
+  <h1>Saldo</h1>
+  <p class="sub">Podgląd wykorzystania urlopu w danym roku. Limity ustawisz w <a href="/ustawienia">Ustawieniach</a>.</p>
+
+  <div class="rok-wybor">
+    <label style="margin:0">Rok</label>
+    <input type="number" id="rok" step="1" style="width:110px">
+  </div>
+
+  <div class="card">
+    <h2>Bilans wykorzystania</h2>
+    <div id="bilans"></div>
+    <p class="muted" id="bilans-legenda">Zielony — wykorzystane (zaakceptowane); żółty — zaplanowane (do akceptacji).</p>
+  </div>
+</div>
+
+<script src="/static/common.js"></script>
+<script>
+// $, api — z /static/common.js
+const fmt = n => (n==null ? "—" : (Number.isInteger(n) ? String(n) : n.toFixed(1)));
+
+function renderBilans(pozycje){
+  const cont = $("bilans"); cont.innerHTML = "";
+  if(!pozycje.length){ cont.innerHTML = '<p class="muted">Brak aktywnych limitów dla tego roku.</p>'; return; }
+  pozycje.forEach(p => {
+    const box = document.createElement("div"); box.className = "poz" + (p.krotki_termin ? " krotki" : "");
+    const top = document.createElement("div"); top.className="top";
+    const ety = document.createElement("span"); ety.className="ety"; ety.textContent = p.etykieta;
+    if(p.krotki_termin){ const b=document.createElement("span"); b.className="badge-term"; b.textContent="krótszy termin ważności"; ety.appendChild(b); }
+    const liczby = document.createElement("span"); liczby.className="liczby";
+    let txt = `${fmt(p.wykorzystano)}${p.limit!=null?" / "+fmt(p.limit):""} ${p.jednostka}`;
+    if(p.zaplanowano) txt += ` (+${fmt(p.zaplanowano)} zaplanowane)`;
+    if(p.pozostalo!=null) txt += ` · pozostało ${fmt(p.pozostalo)}`;
+    liczby.textContent = txt;
+    top.appendChild(ety); top.appendChild(liczby); box.appendChild(top);
+
+    if(p.krotki_termin){
+      const n=document.createElement("div"); n.className="muted"; n.textContent="Do wykorzystania do końca miesiąca, w którym wypada święto.";
+      box.appendChild(n); cont.appendChild(box); return;
+    }
+
+    const bar = document.createElement("div"); bar.className="bar";
+    const baza = p.limit!=null && p.limit>0 ? p.limit : Math.max(p.wykorzystano + p.zaplanowano, 1);
+    const over = p.limit!=null && p.wykorzystano > p.limit;
+    const uzyte = document.createElement("div"); uzyte.className="uzyte"+(over?" over":"");
+    uzyte.style.width = Math.min(100, 100*p.wykorzystano/baza) + "%";
+    const plan = document.createElement("div"); plan.className="plan";
+    plan.style.width = Math.min(100 - 100*p.wykorzystano/baza, 100*p.zaplanowano/baza) + "%";
+    bar.appendChild(uzyte); bar.appendChild(plan); box.appendChild(bar);
+    cont.appendChild(box);
+  });
+}
+
+async function odswiez(){ renderBilans(await api.get(`/api/bilans?rok=${$("rok").value}`)); }
+$("rok").addEventListener("change", odswiez);
+
+(async function init(){
+  $("rok").value = new Date().getFullYear();
+  await odswiez();
+})();
+</script>
+</body>
+</html>

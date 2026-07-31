@@ -208,7 +208,14 @@ def test_generate_overdue_sets_pool(client):
 def test_settings_page_served(client):
     r = client.get("/ustawienia")
     assert r.status_code == 200
-    assert "Ustawienia i bilans" in r.text
+    assert "Mój profil" in r.text
+    assert "Bilans wykorzystania" not in r.text  # bilans wydzielony do /saldo
+
+
+def test_balance_page_served(client):
+    r = client.get("/saldo")
+    assert r.status_code == 200
+    assert "Bilans wykorzystania" in r.text
 
 
 def _new_record_id(client):

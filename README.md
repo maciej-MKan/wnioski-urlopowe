@@ -14,8 +14,8 @@ Obsługiwane wnioski:
 ## Stos technologiczny
 
 - **Backend:** Python + FastAPI, generowanie PDF przez WeasyPrint (HTML+CSS → PDF, pełne wsparcie polskich znaków).
-- **Frontend:** vanilla JS, trzy strony z nawigacją — **kalendarz** (`/`, strona główna),
-  **generator** (`/nowy`) i **ustawienia** (`/ustawienia`). Wspólne helpery i style wydzielone do
+- **Frontend:** vanilla JS, cztery strony z nawigacją — **kalendarz** (`/`, strona główna),
+  **generator** (`/nowy`), **saldo** (`/saldo`, podgląd bilansu) i **ustawienia** (`/ustawienia`, profil + limity). Wspólne helpery i style wydzielone do
   `static/common.js` (skrót `$`, klient `api`, narzędzia dat) i `static/common.css` (tokeny,
   nawigacja, modale), serwowanych z montażu `/static`. W generatorze zakładki i pola formularza
   są **generowane z rejestru typów** (`/api/typy`) — nie ma kodu per-typ w HTML; dane wspólne
@@ -112,7 +112,8 @@ przepływ obsługuje **klient mobilny** — po zalogowaniu backend wraca deep li
 |---|---|---|
 | `GET` | `/` | kalendarz urlopów (strona główna; alias `/kalendarz`) |
 | `GET` | `/nowy` | generator wniosków (interfejs) |
-| `GET` | `/ustawienia` | profil + ustawienia limitów + widżet bilansu |
+| `GET` | `/saldo` | podgląd bilansu wykorzystania (tylko odczyt) |
+| `GET` | `/ustawienia` | profil + ustawienia limitów |
 | `GET` | `/api/typy` | rejestr typów wniosków (zakładki + pola); `?rok=RRRR` dokłada flagę `aktywny` per typ wg Ustawień |
 | `GET` | `/api/swieta?rok=RRRR` | dni ustawowo wolne od pracy w danym roku |
 | `GET`/`PUT` | `/api/ustawienia?rok=RRRR` | odczyt / zapis limitów + przełącznik `jednozmianowy` (dni wolne za święta w sobotę) |

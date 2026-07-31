@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ustawienia i bilans urlopów</title>
+<title>Ustawienia urlopów</title>
 <link rel="stylesheet" href="/static/common.css">
 <style>
   :root{ --plan:#c9a227; --zla:#d0453b; --track:#eef1f6; }  /* tokeny specyficzne dla bilansu */
@@ -54,9 +54,9 @@
 </head>
 <body>
 <div class="wrap">
-  <nav class="topnav"><a href="/">Kalendarz</a><a href="/nowy">Nowy wniosek</a><a href="/ustawienia" class="on">Ustawienia</a></nav>
-  <h1>Ustawienia i bilans</h1>
-  <p class="sub">Ustaw przysługujące limity na dany rok, a poniżej zobacz wykorzystanie.</p>
+  <nav class="topnav"><a href="/">Kalendarz</a><a href="/nowy">Nowy wniosek</a><a href="/saldo">Saldo</a><a href="/ustawienia" class="on">Ustawienia</a></nav>
+  <h1>Ustawienia</h1>
+  <p class="sub">Twój profil i przysługujące limity na dany rok. Wykorzystanie zobaczysz w <a href="/saldo">Saldzie</a>.</p>
 
   <div class="card">
     <h2>Mój profil</h2>
@@ -86,11 +86,6 @@
     </div>
   </div>
 
-  <div class="card">
-    <h2>Bilans wykorzystania</h2>
-    <div id="bilans"></div>
-    <p class="muted" id="bilans-legenda">Zielony — wykorzystane (zaakceptowane); żółty — zaplanowane (do akceptacji).</p>
-  </div>
 </div>
 
 <script src="/static/common.js"></script>
@@ -98,7 +93,6 @@
 // $, api — z /static/common.js
 let TYPY = [];         // z /api/typy (metadane typów)
 let WSPOLNE = [];      // pola wspólne rejestru (do profilu)
-const fmt = n => (n==null ? "—" : (Number.isInteger(n) ? String(n) : n.toFixed(1)));
 
 // ---- profil użytkownika (dane wspólne w bazie) ----
 function renderProfil(dane){
@@ -174,47 +168,11 @@ function zbierzPayload(){
   return payload;
 }
 
-// ---- bilans ----
-function renderBilans(pozycje){
-  const cont = $("bilans"); cont.innerHTML = "";
-  if(!pozycje.length){ cont.innerHTML = '<p class="muted">Brak aktywnych limitów dla tego roku.</p>'; return; }
-  pozycje.forEach(p => {
-    const box = document.createElement("div"); box.className = "poz" + (p.krotki_termin ? " krotki" : "");
-    const top = document.createElement("div"); top.className="top";
-    const ety = document.createElement("span"); ety.className="ety"; ety.textContent = p.etykieta;
-    if(p.krotki_termin){ const b=document.createElement("span"); b.className="badge-term"; b.textContent="krótszy termin ważności"; ety.appendChild(b); }
-    const liczby = document.createElement("span"); liczby.className="liczby";
-    let txt = `${fmt(p.wykorzystano)}${p.limit!=null?" / "+fmt(p.limit):""} ${p.jednostka}`;
-    if(p.zaplanowano) txt += ` (+${fmt(p.zaplanowano)} zaplanowane)`;
-    if(p.pozostalo!=null) txt += ` · pozostało ${fmt(p.pozostalo)}`;
-    liczby.textContent = txt;
-    top.appendChild(ety); top.appendChild(liczby); box.appendChild(top);
-
-    // Pozycja §14 jest informacyjna (do wykorzystania do końca roku) — bez paska wykorzystania.
-    if(p.krotki_termin){
-      const n=document.createElement("div"); n.className="muted"; n.textContent="Do wykorzystania do końca miesiąca, w którym wypada święto.";
-      box.appendChild(n); cont.appendChild(box); return;
-    }
-
-    const bar = document.createElement("div"); bar.className="bar";
-    const baza = p.limit!=null && p.limit>0 ? p.limit : Math.max(p.wykorzystano + p.zaplanowano, 1);
-    const over = p.limit!=null && p.wykorzystano > p.limit;
-    const uzyte = document.createElement("div"); uzyte.className="uzyte"+(over?" over":"");
-    uzyte.style.width = Math.min(100, 100*p.wykorzystano/baza) + "%";
-    const plan = document.createElement("div"); plan.className="plan";
-    plan.style.width = Math.min(100 - 100*p.wykorzystano/baza, 100*p.zaplanowano/baza) + "%";
-    bar.appendChild(uzyte); bar.appendChild(plan); box.appendChild(bar);
-    cont.appendChild(box);
-  });
-}
-
 // ---- ładowanie / zapis ----
 async function odswiez(){
-  const rok = $("rok").value;
-  const [ust, bil] = await Promise.all([api.get(`/api/ustawienia?rok=${rok}`), api.get(`/api/bilans?rok=${rok}`)]);
+  const ust = await api.get(`/api/ustawienia?rok=${$("rok").value}`);
   renderFormularz(ust.uprawnienia);
   $("jednozmianowy").checked = ust.jednozmianowy !== false;  // domyślnie włączone
-  renderBilans(bil);
 }
 $("rok").addEventListener("change", odswiez);
 $("zapisz").addEventListener("click", async () => {

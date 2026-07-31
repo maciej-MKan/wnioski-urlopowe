@@ -109,6 +109,10 @@ def create_router() -> APIRouter:
     def generator() -> FileResponse:
         return FileResponse(_STATIC / "index.html")
 
+    @router.get("/saldo", response_class=HTMLResponse)
+    def balance_page() -> FileResponse:
+        return FileResponse(_STATIC / "saldo.html")
+
     @router.get("/ustawienia", response_class=HTMLResponse)
     def settings_page() -> FileResponse:
         return FileResponse(_STATIC / "ustawienia.html")
