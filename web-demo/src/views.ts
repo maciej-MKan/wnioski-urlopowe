@@ -2,7 +2,7 @@ import { backend } from "./backend";
 import { STATUS_LABEL, calendarDays, type LeaveRecord, type Status } from "./domain";
 import { typeById, type Field } from "./registry";
 
-export type View = "kalendarz" | "nowy" | "saldo" | "profil";
+export type View = "kalendarz" | "nowy" | "ustawienia";
 export type AppState = {
   view: View;
   ym: { y: number; m: number }; // m: 1-12
@@ -205,11 +205,18 @@ export function viewCreate(root: HTMLElement, st: AppState, rerender: () => void
   });
 }
 
-// ---------------- Saldo ----------------
-export function viewBalance(root: HTMLElement): void {
+// ---------------- Ustawienia (Mój profil + Bilans) ----------------
+export function viewSettings(root: HTMLElement, rerender: () => void): void {
+  root.innerHTML = `<h1 style="margin:0 0 14px">Ustawienia i bilans</h1>
+    <div id="_profil"></div><div id="_bilans"></div>`;
+  renderProfileCard(root.querySelector<HTMLElement>("#_profil")!, rerender);
+  renderBalanceCards(root.querySelector<HTMLElement>("#_bilans")!);
+}
+
+function renderBalanceCards(root: HTMLElement): void {
   const items = backend.balance();
   const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
-  root.innerHTML = `<h2>Saldo (rok 2026)</h2>` + items.map((it) => `
+  root.innerHTML = `<h2>Bilans wykorzystania (2026)</h2>` + items.map((it) => `
     <div class="card">
       <b>${esc(it.etykieta)}</b>
       <div class="metrics">
@@ -221,11 +228,11 @@ export function viewBalance(root: HTMLElement): void {
     </div>`).join("");
 }
 
-// ---------------- Profil ----------------
-export function viewProfile(root: HTMLElement, rerender: () => void): void {
+// ---------------- Mój profil (karta) ----------------
+function renderProfileCard(root: HTMLElement, rerender: () => void): void {
   const p = backend.profile();
   root.innerHTML = `<div class="card">
-    <h2>Profil</h2>
+    <h2>Mój profil</h2>
     <p class="muted">Domyślne dane wspólne wstawiane do wniosków (w pamięci).</p>
     ${backend.common().filter((f) => f.name !== "data").map((f) => {
       const v = esc(p[f.name] ?? "");
