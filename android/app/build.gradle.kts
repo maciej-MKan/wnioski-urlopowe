@@ -28,8 +28,10 @@ android {
     }
 
     // Base URL backendu per wariant. Emulator widzi host jako 10.0.2.2; telefon → IP w LAN.
-    // Prod można nadpisać: ./gradlew assembleRelease -PPROD_BASE_URL=https://twoj-serwer/
-    val devBaseUrl = "http://10.0.2.2:8138/"
+    // Nadpisywalne przy budowaniu:
+    //   ./gradlew assembleDebug   -PDEV_BASE_URL=http://192.168.1.203:8138/   (telefon w LAN)
+    //   ./gradlew assembleRelease -PPROD_BASE_URL=https://twoj-serwer/
+    val devBaseUrl = (project.findProperty("DEV_BASE_URL") as String?) ?: "http://10.0.2.2:8138/"
     val prodBaseUrl = (project.findProperty("PROD_BASE_URL") as String?) ?: "http://10.0.2.2:8137/"
 
     signingConfigs {
