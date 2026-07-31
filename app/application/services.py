@@ -21,6 +21,18 @@ def _now_iso() -> str:
     return datetime.now().isoformat(timespec="seconds")
 
 
+# Paternity leave rules (art. 182³ K.p.): ≤ 2 tygodnie, w maks. 2 częściach po min. 1 tydzień.
+_PATERNITY_ID = "ojcowski"
+_PATERNITY_MIN_PART = 7
+_PATERNITY_MAX_TOTAL = 14
+_PATERNITY_MAX_PARTS = 2
+
+
+def _child_key(data: dict) -> str:
+    """Groups paternity parts per child (birth date preferred, else name)."""
+    return str(data.get("dziecko_data_urodzenia") or data.get("dziecko_imie_nazwisko") or "").strip()
+
+
 def _number(value: object, default: Optional[float]) -> Optional[float]:
     """Parses a number (comma allowed); returns `default` when empty or non-numeric."""
     text = str(value if value is not None else "").strip().replace(",", ".")
@@ -86,6 +98,7 @@ class LeaveService:
         (with its own PDF), the rest stays annual leave. Different legal basis → two documents.
         """
         data = self._registry.validate(payload)
+        self._require_paternity_rules(data)  # §20.2: urlop ojcowski — min./maks. część, suma
         period = DateRange.from_strings(data.get("data_od"), data.get("data_do"))
         total = working_days(period) or 0
         k = min(max(0, int(weekend_days or 0)), total)
@@ -158,6 +171,42 @@ class LeaveService:
                 f"(pozostało {remaining})."
             )
 
+    def _require_paternity_rules(self, data: dict, exclude_id: Optional[int] = None) -> None:
+        """Paternity leave (art. 182³): each part ≥ 7 days, ≤ 14 days total, ≤ 2 parts — per child.
+
+        Enforced on every write path (create, manual, period correction), so the correction
+        endpoint can't be a back door (§20.2). Grouped by child (birth date, else name) because
+        the entitlement is per child, not per year.
+        """
+        if data.get("typ") != _PATERNITY_ID:
+            return
+        period = DateRange.from_strings(data.get("data_od"), data.get("data_do"))
+        part = period.calendar_days()
+        if part is None:
+            return  # no dates — length rule needs a range; other validation covers empties
+        if part < _PATERNITY_MIN_PART:
+            raise ValueError(
+                f"Urlop ojcowski musi trwać co najmniej {_PATERNITY_MIN_PART} dni (podano {part})."
+            )
+        child = _child_key(data)
+        others = []
+        for r in self._repository.list():
+            if r.leave_type != _PATERNITY_ID or r.status == Status.REJECTED or r.id == exclude_id:
+                continue
+            if _child_key(r.data) != child:
+                continue
+            # Skip an identical period (idempotent re-submit of the same application).
+            if r.period.start_iso == period.start_iso and r.period.end_iso == period.end_iso:
+                continue
+            others.append(r)
+        if len(others) + 1 > _PATERNITY_MAX_PARTS:
+            raise ValueError(f"Urlop ojcowski: maksymalnie {_PATERNITY_MAX_PARTS} części na dziecko.")
+        total = sum((r.period.calendar_days() or 0) for r in others) + part
+        if total > _PATERNITY_MAX_TOTAL:
+            raise ValueError(
+                f"Urlop ojcowski: łącznie do {_PATERNITY_MAX_TOTAL} dni na dziecko (byłoby {total})."
+            )
+
     def save(self, data: dict, pdf: bytes) -> LeaveRecord:
         """Builds an aggregate from the generated application and persists it (idempotent by content)."""
         days, hours = self._amount(data)
@@ -204,6 +253,7 @@ class LeaveService:
         record.correct_period(DateRange.from_strings(start, end), reason, self._clock())
         # The amount is computed from the new range — we also update the dates in the source data.
         record.data = {**record.data, "data_od": record.period.start_iso or "", "data_do": record.period.end_iso or ""}
+        self._require_paternity_rules(record.data, exclude_id=record_id)  # §20.2: nie omijaj walidacji korektą
         record.working_days, record.hours = self._amount(record.data)
         return self._repository.update(record)
 
@@ -212,6 +262,7 @@ class LeaveService:
         data = self._registry.validate(payload)
         if data["typ"] == WEEKEND_OFF_ID:
             self._require_weekend_capacity(data)  # §16.1: only within the holiday's month, up to capacity
+        self._require_paternity_rules(data)  # §20.2
         days, hours = self._amount(data)
         record = LeaveRecord.manual(data, now=self._clock(), status=Status(status), working_days=days, hours=hours)
         return self._repository.save(record)

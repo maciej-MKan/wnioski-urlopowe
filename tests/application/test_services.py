@@ -79,6 +79,47 @@ def test_record_pdf_returns_saved_bytes(service):
     assert service.record_pdf(record.id) == p.pdf
 
 
+def _pat(data_od, data_do, child="2026-01-10"):
+    return {
+        "typ": "ojcowski",
+        "imie_nazwisko": "Jan Kowalski",
+        "dziecko_imie_nazwisko": "Dziecko Kowalski",
+        "dziecko_data_urodzenia": child,
+        "wymiar": "2 tygodnie",
+        "data_od": data_od,
+        "data_do": data_do,
+    }
+
+
+def test_paternity_part_shorter_than_week_rejected(service):
+    with pytest.raises(ValueError):
+        service.add_manual(_pat("2026-03-02", "2026-03-07"))  # 6 dni kalendarzowych
+
+
+def test_paternity_week_part_accepted(service):
+    service.add_manual(_pat("2026-03-02", "2026-03-08"))  # dokładnie 7 dni
+    assert len(service.list_records()) == 1
+
+
+def test_paternity_total_over_two_weeks_rejected(service):
+    service.add_manual(_pat("2026-03-02", "2026-03-08"))  # 7
+    service.add_manual(_pat("2026-04-06", "2026-04-12"))  # +7 = 14 (OK)
+    with pytest.raises(ValueError):
+        service.add_manual(_pat("2026-05-04", "2026-05-10"))  # +7 = 21 > 14
+
+
+def test_paternity_rules_are_per_child(service):
+    service.add_manual(_pat("2026-03-02", "2026-03-15", child="2026-01-10"))  # 14 dni, dziecko A
+    service.add_manual(_pat("2026-04-06", "2026-04-19", child="2026-06-20"))  # 14 dni, dziecko B — OK
+    assert len(service.list_records()) == 2
+
+
+def test_paternity_correction_cannot_bypass_min_part(service):
+    rec = service.add_manual(_pat("2026-03-02", "2026-03-08"))  # 7 dni
+    with pytest.raises(ValueError):
+        service.correct_period(rec.id, "2026-03-02", "2026-03-06", "skrócenie")  # 5 dni — furtka zamknięta
+
+
 def test_default_settings(service):
     ent = {e.leave_type: e for e in service.settings(2026)}
     assert ent["wypoczynkowy"].active is True

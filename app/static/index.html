@@ -320,7 +320,11 @@ async function utworzWnioski(pobierz){
   busy(true);
   try{
     const r = await api.postJson("/api/wnioski", p);
-    if(!r.ok){ alert("Błąd zapisu: " + r.status); return; }
+    if(!r.ok){
+      let m = "Błąd zapisu: " + r.status;
+      try{ const j = await r.json(); if(j && j.detail) m = j.detail; }catch(e){}
+      alert(m); return;
+    }
     const wnioski = (await r.json()).wnioski || [];
     if(pobierz){ for(const w of wnioski) await pobierzPdf(w.id, w.nazwa_pliku); }
     const info = $("dodano");

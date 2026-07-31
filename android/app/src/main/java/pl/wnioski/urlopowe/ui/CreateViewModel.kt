@@ -168,7 +168,8 @@ class CreateViewModel(
                 it.copy(submitting = false, done = true, successMessage = msg, created = resp.wnioski)
             }
         } catch (e: Exception) {
-            _state.update { it.copy(submitting = false, error = "Nie udało się zapisać wniosku.") }
+            val msg = pl.wnioski.urlopowe.data.apiErrorDetail(e) ?: "Nie udało się zapisać wniosku."
+            _state.update { it.copy(submitting = false, error = msg) }
         }
     }
 }

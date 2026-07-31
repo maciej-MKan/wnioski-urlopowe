@@ -498,7 +498,11 @@ async function dodajReczny(){
   const w = $("r_wymiar").value.trim();
   if(w){ payload.wymiar = w; if(typ === "opieka") payload.forma = "godziny"; }
   const r = await api.postJson("/api/rekordy/reczny", payload);
-  if(!r.ok){ alert("Nie udało się dodać rekordu."); return; }
+  if(!r.ok){
+    let m = "Nie udało się dodać rekordu.";
+    try{ const j = await r.json(); if(j && j.detail) m = j.detail; }catch(e){}
+    alert(m); return;
+  }
   $("dodaj-karta").classList.add("hidden");
   await wczytajRekordy(); render();
 }

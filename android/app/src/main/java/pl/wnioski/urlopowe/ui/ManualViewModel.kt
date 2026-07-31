@@ -76,7 +76,8 @@ class ManualViewModel(
                 repo.createManual(payload)
                 _state.update { it.copy(submitting = false, done = true) }
             } catch (e: Exception) {
-                _state.update { it.copy(submitting = false, error = "Nie udało się dodać urlopu.") }
+                val msg = pl.wnioski.urlopowe.data.apiErrorDetail(e) ?: "Nie udało się dodać urlopu."
+                _state.update { it.copy(submitting = false, error = msg) }
             }
         }
     }

@@ -209,6 +209,8 @@ def create_router() -> APIRouter:
             records = service.create_applications(payload, weekend_days=weekend)
         except UnknownLeaveType as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except ValueError as exc:  # np. reguły urlopu ojcowskiego (§20.2)
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         return {
             "wnioski": [
                 {"id": r.id, "nazwa_pliku": service.application_file_name(r), "typ": r.leave_type}
@@ -329,7 +331,7 @@ def create_router() -> APIRouter:
             )
         except RecordNotFound as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except InvalidCorrection as exc:
+        except (InvalidCorrection, ValueError) as exc:  # ValueError: reguły ojcowskiego (§20.2)
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return record_to_json(record)
 
