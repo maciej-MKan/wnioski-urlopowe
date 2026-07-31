@@ -20,6 +20,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,6 +47,9 @@ fun BalanceScreen(container: AppContainer, initialYear: Int, onBack: () -> Unit)
         factory = viewModelFactory { initializer { BalanceViewModel(container.settings, initialYear) } }
     )
     val state by vm.state.collectAsStateWithLifecycle()
+    // Po powrocie na ekran (np. po dodaniu urlopu) przeładuj saldo — VM jest w zakresie Activity,
+    // więc `init { load() }` nie odpala się ponownie (§20.3).
+    LaunchedEffect(Unit) { vm.load() }
 
     Column(modifier = Modifier.fillMaxSize().safeDrawingPadding().padding(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {

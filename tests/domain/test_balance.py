@@ -54,17 +54,24 @@ def test_paternity_when_active():
     assert items["Urlop ojcowski"].remaining == 0
 
 
-def test_child_care_two_axes_days_and_hours():
+def test_child_care_single_pool_across_units():
+    # Art. 188: jedna pula „2 dni albo 16 godzin" (1 dzień = 8 h) — formy się sumują (§20.1).
     entitlements = {"opieka": _ent("opieka", active=True, limit_days=2, limit_hours=16)}
-    records = [
-        _rec("opieka", Status.APPROVED, hours=8),
-        _rec("opieka", Status.APPROVED, days=1),
-    ]
-    items = _by_label(compute_balance(REGISTRY, entitlements, records))
+
+    # Sam 1 dzień = 8 h → pula godzinowa spada do 8 (wcześniej błędnie zostawała pełna 16).
+    items = _by_label(compute_balance(REGISTRY, entitlements, [_rec("opieka", Status.APPROVED, days=1)]))
     assert items["Opieka nad dzieckiem (dni)"].used == 1
     assert items["Opieka nad dzieckiem (dni)"].remaining == 1
     assert items["Opieka nad dzieckiem (godziny)"].used == 8
     assert items["Opieka nad dzieckiem (godziny)"].remaining == 8
+
+    # 8 h + 1 dzień (=8 h) = pełna pula (2 dni / 16 h) — pozostało 0 na obu osiach.
+    records = [_rec("opieka", Status.APPROVED, hours=8), _rec("opieka", Status.APPROVED, days=1)]
+    items = _by_label(compute_balance(REGISTRY, entitlements, records))
+    assert items["Opieka nad dzieckiem (dni)"].used == 2
+    assert items["Opieka nad dzieckiem (dni)"].remaining == 0
+    assert items["Opieka nad dzieckiem (godziny)"].used == 16
+    assert items["Opieka nad dzieckiem (godziny)"].remaining == 0
 
 
 def test_rejected_does_not_count():

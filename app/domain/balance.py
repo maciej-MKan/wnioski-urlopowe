@@ -84,6 +84,39 @@ def _item(leave_type, label, unit, limit, records, attribute) -> BalanceItem:
     return BalanceItem(leave_type, label, unit, limit, used, planned, remaining)
 
 
+def _dual_unit_items(leave_type, ent, records: list[LeaveRecord]) -> list[BalanceItem]:
+    """Child care (art. 188): one pool shown on two axes (days, hours).
+
+    Usage from day-form and hour-form records shares a single pool: a day counts as
+    `hours_per_day` hours (= limit_hours / limit_days, i.e. 8). We settle in hours and derive
+    the days axis from the same total, so any record decrements both axes consistently.
+    """
+    hours_per_day = (ent.limit_hours / ent.limit_days) if (ent.limit_days and ent.limit_hours) else 8.0
+
+    def hours_for(status: Status) -> float:
+        total = 0.0
+        for r in records:
+            if r.status != status:
+                continue
+            if r.hours is not None:
+                total += r.hours
+            elif r.working_days is not None:
+                total += r.working_days * hours_per_day
+        return total
+
+    used_h = hours_for(Status.APPROVED)
+    planned_h = hours_for(Status.PENDING)
+
+    def line(label: str, unit: str, limit, used: float, planned: float) -> BalanceItem:
+        return BalanceItem(leave_type.id, label, unit, limit, used, planned,
+                           (limit - used) if limit is not None else None)
+
+    return [
+        line(f"{leave_type.name} (dni)", "dni", ent.limit_days, used_h / hours_per_day, planned_h / hours_per_day),
+        line(f"{leave_type.name} (godziny)", "godziny", ent.limit_hours, used_h, planned_h),
+    ]
+
+
 def compute_balance(
     registry: LeaveTypeRegistry,
     entitlements: dict[str, Entitlement],
@@ -108,9 +141,10 @@ def compute_balance(
                 _item(leave_type.id, f"{leave_type.name} (zaległy)", "dni", ent.carried_over, overdue, "working_days")
             )
         elif leave_type.default_limit_days is not None and leave_type.default_limit_hours is not None:
-            # Dual-unit type (art. 188): days and hours separately.
-            items.append(_item(leave_type.id, f"{leave_type.name} (dni)", "dni", ent.limit_days, recs, "working_days"))
-            items.append(_item(leave_type.id, f"{leave_type.name} (godziny)", "godziny", ent.limit_hours, recs, "hours"))
+            # Dual-unit type (art. 188): ONE pool "2 days OR 16 hours". A day and hours draw from
+            # the same pool, so convert every record to hours (1 day = limit_hours/limit_days h),
+            # settle in hours, then present both axes (days, hours) derived from that single total.
+            items.extend(_dual_unit_items(leave_type, ent, recs))
         elif leave_type.unit == Unit.HOURS:
             items.append(_item(leave_type.id, leave_type.name, "godziny", ent.limit_hours, recs, "hours"))
         else:
