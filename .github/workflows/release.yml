@@ -1,6 +1,8 @@
 name: Release APK
 
 # Uruchamia się po wypchnięciu tagu, np. `git tag v0.2 && git push origin v0.2`.
+# Tag `v*` = milestone całego projektu (web + backend + mobile).
+# GitHub Release powstaje ZAWSZE; podpisany APK dokleja się tylko, gdy w repo są sekrety podpisu.
 on:
   push:
     tags: [ "v*" ]
@@ -10,7 +12,7 @@ permissions:
 
 jobs:
   release:
-    name: Build signed APK + GitHub Release
+    name: GitHub Release (+ APK gdy są sekrety)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,16 +24,15 @@ jobs:
 
       - uses: android-actions/setup-android@v3
 
-      - name: Install SDK packages
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
-
       # Odtworzenie keystore + keystore.properties z sekretów repozytorium.
-      # Wymagane sekrety (Settings → Secrets and variables → Actions):
+      # Sekrety (Settings → Secrets and variables → Actions):
       #   RELEASE_KEYSTORE_BASE64  – keystore .jks zakodowany base64 (`base64 -w0 release.jks`)
       #   RELEASE_STORE_PASSWORD, RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD
       # Opcjonalnie:
       #   PROD_BASE_URL – adres backendu wstrzykiwany do wariantu release (domyślnie z build.gradle.kts)
+      # Brak RELEASE_KEYSTORE_BASE64 → APK jest pomijany, a Release powstaje bez pliku.
       - name: Restore signing config
+        id: sign
         working-directory: android
         env:
           KS_B64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
@@ -40,8 +41,9 @@ jobs:
           KEY_PW: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
           if [ -z "$KS_B64" ]; then
-            echo "::error::Brak sekretu RELEASE_KEYSTORE_BASE64 — dodaj sekrety podpisu, by budować release APK."
-            exit 1
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Brak sekretu RELEASE_KEYSTORE_BASE64 — Release powstanie bez APK. Dodaj sekrety podpisu, by dołączać APK."
+            exit 0
           fi
           mkdir -p keystore
           echo "$KS_B64" | base64 -d > keystore/release.jks
@@ -51,8 +53,14 @@ jobs:
             echo "keyAlias=$KEY_ALIAS"
             echo "keyPassword=$KEY_PW"
           } > keystore.properties
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Install SDK packages
+        if: steps.sign.outputs.signed == 'true'
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
       - name: Build release APK
+        if: steps.sign.outputs.signed == 'true'
         working-directory: android
         env:
           PROD_URL: ${{ secrets.PROD_BASE_URL }}
@@ -61,9 +69,17 @@ jobs:
           ./gradlew --no-daemon :app:assembleRelease ${PROD_URL:+-PPROD_BASE_URL=$PROD_URL}
 
       - name: Rename APK
+        if: steps.sign.outputs.signed == 'true'
         run: cp android/app/build/outputs/apk/release/app-release.apk "wnioski-${GITHUB_REF_NAME}.apk"
 
-      - name: Create GitHub Release
+      - name: Create GitHub Release (z APK)
+        if: steps.sign.outputs.signed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "${GITHUB_REF_NAME}" "wnioski-${GITHUB_REF_NAME}.apk" --generate-notes --title "${GITHUB_REF_NAME}"
+
+      - name: Create GitHub Release (bez APK)
+        if: steps.sign.outputs.signed != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" --generate-notes --title "${GITHUB_REF_NAME}"
