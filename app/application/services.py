@@ -207,12 +207,35 @@ class LeaveService:
                 f"Urlop ojcowski: łącznie do {_PATERNITY_MAX_TOTAL} dni na dziecko (byłoby {total})."
             )
 
+    def _require_no_overlap(self, record: LeaveRecord, exclude_id: Optional[int] = None) -> None:
+        """One leave per day: reject a period overlapping any existing (non-rejected) record (§20.4).
+
+        Excludes the identical application (same content hash) so an idempotent re-save isn't
+        treated as a self-collision; `exclude_id` skips the record being corrected in place.
+        """
+        period = record.period
+        if period.start is None or period.end is None:
+            return
+        for r in self._repository.list():
+            if r.status == Status.REJECTED or r.id == exclude_id:
+                continue
+            if r.content_hash == record.content_hash:
+                continue
+            if r.period.start is None or r.period.end is None:
+                continue
+            if r.period.start <= period.end and period.start <= r.period.end:  # zakresy się nakładają
+                raise ValueError(
+                    f"Okres {period.start_iso}–{period.end_iso} nachodzi na istniejący urlop "
+                    f"({r.period.start_iso}–{r.period.end_iso}). W jednym dniu może być tylko jeden urlop."
+                )
+
     def save(self, data: dict, pdf: bytes) -> LeaveRecord:
         """Builds an aggregate from the generated application and persists it (idempotent by content)."""
         days, hours = self._amount(data)
         record = LeaveRecord.from_application(
             data, now=self._clock(), working_days=days, hours=hours, document=pdf
         )
+        self._require_no_overlap(record)  # §20.4
         return self._repository.save(record)
 
     def recompute_amounts(self) -> int:
@@ -254,6 +277,7 @@ class LeaveService:
         # The amount is computed from the new range — we also update the dates in the source data.
         record.data = {**record.data, "data_od": record.period.start_iso or "", "data_do": record.period.end_iso or ""}
         self._require_paternity_rules(record.data, exclude_id=record_id)  # §20.2: nie omijaj walidacji korektą
+        self._require_no_overlap(record, exclude_id=record_id)  # §20.4
         record.working_days, record.hours = self._amount(record.data)
         return self._repository.update(record)
 
@@ -265,6 +289,7 @@ class LeaveService:
         self._require_paternity_rules(data)  # §20.2
         days, hours = self._amount(data)
         record = LeaveRecord.manual(data, now=self._clock(), status=Status(status), working_days=days, hours=hours)
+        self._require_no_overlap(record)  # §20.4
         return self._repository.save(record)
 
     def delete_record(self, record_id: int) -> bool:

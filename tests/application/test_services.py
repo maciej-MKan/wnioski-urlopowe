@@ -120,6 +120,39 @@ def test_paternity_correction_cannot_bypass_min_part(service):
         service.correct_period(rec.id, "2026-03-02", "2026-03-06", "skrócenie")  # 5 dni — furtka zamknięta
 
 
+def test_overlap_same_type_rejected(service):
+    service.add_manual({"typ": "wypoczynkowy", "data_od": "2026-06-01", "data_do": "2026-06-05"})
+    with pytest.raises(ValueError):
+        service.add_manual({"typ": "wypoczynkowy", "data_od": "2026-06-04", "data_do": "2026-06-08"})
+
+
+def test_overlap_across_types_rejected(service):
+    service.add_manual({"typ": "wypoczynkowy", "data_od": "2026-06-01", "data_do": "2026-06-05"})
+    with pytest.raises(ValueError):  # opieka w dniu zajętym przez urlop — jeden urlop na dzień
+        service.add_manual({"typ": "opieka", "forma": "dni", "wymiar": "1",
+                            "data_od": "2026-06-03", "data_do": "2026-06-03"})
+
+
+def test_adjacent_periods_allowed(service):
+    service.add_manual({"typ": "wypoczynkowy", "data_od": "2026-06-01", "data_do": "2026-06-05"})
+    service.add_manual({"typ": "wypoczynkowy", "data_od": "2026-06-06", "data_do": "2026-06-10"})  # przylega
+    assert len(service.list_records()) == 2
+
+
+def test_correction_into_overlap_rejected(service):
+    service.add_manual({"typ": "wypoczynkowy", "data_od": "2026-06-01", "data_do": "2026-06-05"})
+    rec = service.add_manual({"typ": "wypoczynkowy", "data_od": "2026-06-10", "data_do": "2026-06-12"})
+    with pytest.raises(ValueError):
+        service.correct_period(rec.id, "2026-06-04", "2026-06-11", "kolizja")
+
+
+def test_idempotent_resave_not_blocked_as_overlap(service):
+    p = service.prepare(ANNUAL)
+    service.save(p.data, p.pdf)
+    service.save(p.data, p.pdf)  # identyczna treść → idempotentnie, nie traktowane jako nakładanie
+    assert len(service.list_records()) == 1
+
+
 def test_default_settings(service):
     ent = {e.leave_type: e for e in service.settings(2026)}
     assert ent["wypoczynkowy"].active is True
