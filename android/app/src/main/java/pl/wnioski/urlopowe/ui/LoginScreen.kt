@@ -85,7 +85,15 @@ private fun ServerStep(vm: LoginViewModel, state: LoginState) {
 @Composable
 private fun CredentialsStep(vm: LoginViewModel, state: LoginState, context: android.content.Context) {
     val isRegister = state.mode == LoginMode.REGISTER
-    Text(if (isRegister) "Załóż konto" else "Zaloguj się", style = MaterialTheme.typography.bodyMedium)
+    val title = if (state.setup) "Utwórz konto" else if (isRegister) "Załóż konto" else "Zaloguj się"
+    Text(title, style = MaterialTheme.typography.bodyMedium)
+    if (state.setup) {
+        Text(
+            "Tryb bez logowania — utwórz jedyne konto aplikacji.",
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(top = 6.dp),
+        )
+    }
 
     OutlinedTextField(
         value = state.username,
@@ -112,16 +120,17 @@ private fun CredentialsStep(vm: LoginViewModel, state: LoginState, context: andr
         modifier = Modifier.fillMaxWidth().padding(top = 20.dp),
     ) {
         if (state.loading) CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp))
-        Text(if (isRegister) "Załóż konto" else "Zaloguj")
+        Text(if (state.setup) "Utwórz konto" else if (isRegister) "Załóż konto" else "Zaloguj")
     }
 
-    if (state.canRegister && state.compatible) {
+    // W trybie setup (bez logowania, brak konta) tylko zakładanie konta — bez toggle/Google.
+    if (state.canRegister && state.compatible && !state.setup) {
         TextButton(onClick = vm::toggleMode, modifier = Modifier.padding(top = 4.dp)) {
             Text(if (isRegister) "Masz już konto? Zaloguj się" else "Nie masz konta? Załóż konto")
         }
     }
 
-    if (state.hasGoogle && state.compatible) {
+    if (state.hasGoogle && state.compatible && !state.setup) {
         OutlinedButton(
             onClick = { if (vm.persistServerUrl()) startGoogleLogin(context, vm.state.value.serverUrl) },
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),

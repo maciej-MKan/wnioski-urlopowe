@@ -68,6 +68,26 @@ class LoginViewModelTest {
     }
 
     @Test
+    fun noLoginModeAutoLogsIn() {
+        val api = FakeApi(health = HealthResponse(apiVersion = ApiContract.MAX_SUPPORTED, bezLogowania = true))
+        val vm = LoginViewModel(AuthRepository(api, FakeStore()), FakeServerUrlStore())
+        assertTrue(vm.state.value.success)   // jedyne konto → wejście bez logowania
+    }
+
+    @Test
+    fun setupModeForcesAccountCreation() {
+        val api = FakeApi(health = HealthResponse(apiVersion = ApiContract.MAX_SUPPORTED, rejestracja = true, wymagaKonta = true))
+        val vm = LoginViewModel(AuthRepository(api, FakeStore()), FakeServerUrlStore())
+        assertTrue(vm.state.value.setup)
+        assertEquals(LoginMode.REGISTER, vm.state.value.mode)
+        assertFalse(vm.state.value.success)  // najpierw trzeba utworzyć konto
+        vm.onUsername("solo"); vm.onPassword("tajne12345")
+        vm.submit()
+        assertTrue(vm.state.value.success)
+        assertEquals("solo", api.registered?.username)
+    }
+
+    @Test
     fun serverWithoutApiVersionIsTooOld() {
         val api = FakeApi(health = HealthResponse(apiVersion = 0)) // stary serwer nie zgłasza wersji
         val vm = LoginViewModel(AuthRepository(api, FakeStore()), FakeServerUrlStore())

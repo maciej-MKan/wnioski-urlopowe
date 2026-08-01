@@ -32,6 +32,8 @@ data class LoginState(
     val success: Boolean = false,
     /** Czy wersja API serwera jest zgodna z klientem. `false` → logowanie zablokowane. */
     val compatible: Boolean = true,
+    /** Tryb bez logowania bez konta — pokaż wyłącznie zakładanie jedynego konta. */
+    val setup: Boolean = false,
 )
 
 class LoginViewModel(
@@ -60,19 +62,24 @@ class LoginViewModel(
             try {
                 val h = auth.health()
                 val compat = ApiContract.check(h.apiVersion)
+                val ok = compat is ApiContract.Compatibility.Ok
                 _state.update {
                     it.copy(
                         canRegister = h.rejestracja, hasGoogle = h.google, connected = true,
                         loading = false, step = LoginStep.CREDENTIALS,
-                        compatible = compat is ApiContract.Compatibility.Ok,
+                        compatible = ok,
                         error = ApiContract.message(compat),
+                        // Tryb bez logowania: jedyne konto → wejdź od razu; brak konta → tylko setup.
+                        success = if (ok && h.bezLogowania) true else it.success,
+                        setup = ok && h.wymagaKonta,
+                        mode = if (ok && h.wymagaKonta) LoginMode.REGISTER else it.mode,
                     )
                 }
             } catch (e: Exception) {
                 _state.update {
                     it.copy(
                         loading = false, connected = false, step = LoginStep.SERVER,
-                        compatible = true, // to problem połączenia, nie wersji
+                        compatible = true, setup = false, // to problem połączenia, nie wersji
                         error = "Nie udało się połączyć z serwerem pod tym adresem.",
                     )
                 }

@@ -26,6 +26,10 @@ data class HealthResponse(
     val wersja: String = "",
     /** Wersja kontraktu API. 0 = serwer nie zgłasza wersji (zbyt stary dla tej aplikacji). */
     @SerialName("api_version") val apiVersion: Int = 0,
+    /** Tryb bez logowania aktywny (jedyne konto) — klient pomija logowanie. */
+    @SerialName("bez_logowania") val bezLogowania: Boolean = false,
+    /** Tryb bez logowania, ale brak konta — wymuś utworzenie jedynego konta. */
+    @SerialName("wymaga_konta") val wymagaKonta: Boolean = false,
 )
 
 @Serializable
