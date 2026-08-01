@@ -2,6 +2,7 @@ package pl.wnioski.urlopowe
 
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.ResponseBody.Companion.toResponseBody
+import pl.wnioski.urlopowe.data.ApiContract
 import pl.wnioski.urlopowe.data.ApiService
 import pl.wnioski.urlopowe.data.BalanceItemDto
 import pl.wnioski.urlopowe.data.CreateApplicationsResponse
@@ -29,7 +30,7 @@ class FakeApi(
     private val settings: SettingsResponse? = null,
     private val registry: RegistryDto = RegistryDto(),
     private val workingDays: Double = 0.0,
-    private val health: HealthResponse = HealthResponse(),
+    private val health: HealthResponse = HealthResponse(apiVersion = ApiContract.MAX_SUPPORTED),
     private val healthThrows: Boolean = false,
     profile: Map<String, String> = emptyMap(),
 ) : ApiService {

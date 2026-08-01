@@ -108,20 +108,20 @@ private fun CredentialsStep(vm: LoginViewModel, state: LoginState, context: andr
     }
     Button(
         onClick = vm::submit,
-        enabled = !state.loading,
+        enabled = !state.loading && state.compatible,
         modifier = Modifier.fillMaxWidth().padding(top = 20.dp),
     ) {
         if (state.loading) CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp))
         Text(if (isRegister) "Załóż konto" else "Zaloguj")
     }
 
-    if (state.canRegister) {
+    if (state.canRegister && state.compatible) {
         TextButton(onClick = vm::toggleMode, modifier = Modifier.padding(top = 4.dp)) {
             Text(if (isRegister) "Masz już konto? Zaloguj się" else "Nie masz konta? Załóż konto")
         }
     }
 
-    if (state.hasGoogle) {
+    if (state.hasGoogle && state.compatible) {
         OutlinedButton(
             onClick = { if (vm.persistServerUrl()) startGoogleLogin(context, vm.state.value.serverUrl) },
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),

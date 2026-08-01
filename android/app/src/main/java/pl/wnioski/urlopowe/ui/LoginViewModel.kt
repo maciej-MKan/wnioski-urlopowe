@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import pl.wnioski.urlopowe.data.ApiContract
 import pl.wnioski.urlopowe.data.AuthRepository
 import pl.wnioski.urlopowe.data.ServerUrlStore
 import pl.wnioski.urlopowe.data.normalizeServerUrl
@@ -29,6 +30,8 @@ data class LoginState(
     val loading: Boolean = false,
     val error: String? = null,
     val success: Boolean = false,
+    /** Czy wersja API serwera jest zgodna z klientem. `false` → logowanie zablokowane. */
+    val compatible: Boolean = true,
 )
 
 class LoginViewModel(
@@ -56,16 +59,20 @@ class LoginViewModel(
         viewModelScope.launch {
             try {
                 val h = auth.health()
+                val compat = ApiContract.check(h.apiVersion)
                 _state.update {
                     it.copy(
                         canRegister = h.rejestracja, hasGoogle = h.google, connected = true,
-                        loading = false, step = LoginStep.CREDENTIALS, error = null,
+                        loading = false, step = LoginStep.CREDENTIALS,
+                        compatible = compat is ApiContract.Compatibility.Ok,
+                        error = ApiContract.message(compat),
                     )
                 }
             } catch (e: Exception) {
                 _state.update {
                     it.copy(
                         loading = false, connected = false, step = LoginStep.SERVER,
+                        compatible = true, // to problem połączenia, nie wersji
                         error = "Nie udało się połączyć z serwerem pod tym adresem.",
                     )
                 }
@@ -104,6 +111,7 @@ class LoginViewModel(
     }
 
     fun submit() {
+        if (!_state.value.compatible) return // niezgodna wersja API — logowanie zablokowane
         if (!persistServerUrl()) return
         val s = _state.value
         if (s.username.isBlank() || s.password.isBlank()) {

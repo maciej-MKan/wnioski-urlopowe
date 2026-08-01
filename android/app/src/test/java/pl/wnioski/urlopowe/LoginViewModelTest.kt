@@ -7,6 +7,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import pl.wnioski.urlopowe.data.ApiContract
 import pl.wnioski.urlopowe.data.AuthRepository
 import pl.wnioski.urlopowe.data.HealthResponse
 import pl.wnioski.urlopowe.ui.LoginMode
@@ -46,11 +47,32 @@ class LoginViewModelTest {
 
     @Test
     fun healthDrivesRegisterAndGoogleFlags() {
-        val api = FakeApi(health = HealthResponse(rejestracja = true, google = true))
+        val api = FakeApi(health = HealthResponse(rejestracja = true, google = true, apiVersion = ApiContract.MAX_SUPPORTED))
         val vm = LoginViewModel(AuthRepository(api, FakeStore()), FakeServerUrlStore())
         assertTrue(vm.state.value.canRegister)
         assertTrue(vm.state.value.hasGoogle)
         assertTrue(vm.state.value.connected)
+        assertTrue(vm.state.value.compatible)
+    }
+
+    @Test
+    fun serverApiTooNewBlocksLogin() {
+        val api = FakeApi(health = HealthResponse(apiVersion = ApiContract.MAX_SUPPORTED + 1))
+        val vm = LoginViewModel(AuthRepository(api, FakeStore()), FakeServerUrlStore())
+        assertTrue(vm.state.value.connected)          // serwer osiągalny…
+        assertFalse(vm.state.value.compatible)        // …ale wersja niezgodna
+        assertNotNull(vm.state.value.error)
+        vm.onUsername("ola"); vm.onPassword("tajne123")
+        vm.submit()
+        assertFalse(vm.state.value.success)           // logowanie zablokowane
+    }
+
+    @Test
+    fun serverWithoutApiVersionIsTooOld() {
+        val api = FakeApi(health = HealthResponse(apiVersion = 0)) // stary serwer nie zgłasza wersji
+        val vm = LoginViewModel(AuthRepository(api, FakeStore()), FakeServerUrlStore())
+        assertFalse(vm.state.value.compatible)
+        assertNotNull(vm.state.value.error)
     }
 
     @Test
@@ -69,7 +91,7 @@ class LoginViewModelTest {
 
     @Test
     fun connectPersistsNormalizedUrlAndAdvancesToCredentials() {
-        val api = FakeApi(health = HealthResponse(rejestracja = true, google = false))
+        val api = FakeApi(health = HealthResponse(rejestracja = true, google = false, apiVersion = ApiContract.MAX_SUPPORTED))
         val urlStore = FakeServerUrlStore(initial = null)
         val vm = LoginViewModel(AuthRepository(api, FakeStore()), urlStore)
         assertEquals(LoginStep.SERVER, vm.state.value.step)   // brak adresu → ekran serwera

@@ -19,6 +19,15 @@ def test_health(client):
     assert "srodowisko" in body  # prod/dev — do badge w UI
 
 
+def test_health_reports_version(client):
+    from app.version import API_VERSION, APP_VERSION
+
+    body = client.get("/api/health").json()
+    assert body["wersja"] == APP_VERSION
+    assert body["api_version"] == API_VERSION
+    assert isinstance(body["api_version"], int)  # klient mobilny porównuje jako liczbę
+
+
 def test_home_serves_calendar(client):
     # Kalendarz jest stroną główną (§ kalendarz jako główny komponent).
     r = client.get("/")

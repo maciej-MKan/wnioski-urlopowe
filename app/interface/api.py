@@ -32,6 +32,7 @@ from ..domain.errors import (
     UsernameTaken,
 )
 from ..domain.user import User
+from ..version import API_VERSION, APP_VERSION
 from .serializers import (
     balance_item_to_json,
     entitlement_to_json,
@@ -347,13 +348,16 @@ def create_router() -> APIRouter:
 
     @router.get("/api/health")
     def health(request: Request) -> dict:
-        # `srodowisko` (prod/dev) → badge w UI; `rejestracja` → czy pokazać formularz rejestracji.
+        # `srodowisko` (prod/dev) → badge w UI; `rejestracja` → czy pokazać formularz rejestracji;
+        # `wersja`/`api_version` → kontrola zgodności klienta (mobilny sprawdza `api_version`).
         container = _container(request)
         return {
             "status": "ok",
             "srodowisko": os.environ.get("WNIOSKI_ENV", "prod"),
             "rejestracja": container.auth.allow_register,
             "google": container.google is not None,
+            "wersja": APP_VERSION,
+            "api_version": API_VERSION,
         }
 
     return router

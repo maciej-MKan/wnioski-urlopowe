@@ -22,6 +22,10 @@ data class HealthResponse(
     val srodowisko: String = "prod",
     val rejestracja: Boolean = false,
     val google: Boolean = false,
+    /** Wersja czytelna (np. „0.2"); pusta, gdy serwer jej nie zgłasza. */
+    val wersja: String = "",
+    /** Wersja kontraktu API. 0 = serwer nie zgłasza wersji (zbyt stary dla tej aplikacji). */
+    @SerialName("api_version") val apiVersion: Int = 0,
 )
 
 @Serializable
