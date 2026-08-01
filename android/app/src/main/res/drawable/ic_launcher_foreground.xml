@@ -1,0 +1,77 @@
+<!-- Warstwa treści ikony adaptywnej: karta kalendarza z tropikalną wysepką (§ikona).
+     Tło (zieleń) jest osobną warstwą (@color/ic_launcher_background). Viewport 108. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- karta kalendarza -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M33,33 h42 a7,7 0 0 1 7,7 v36 a7,7 0 0 1 -7,7 h-42 a7,7 0 0 1 -7,-7 v-36 a7,7 0 0 1 7,-7 z" />
+    <!-- pasek nagłówka -->
+    <path
+        android:fillColor="#23694A"
+        android:pathData="M33,33 h42 a7,7 0 0 1 7,7 v4 h-56 v-4 a7,7 0 0 1 7,-7 z" />
+    <path
+        android:fillColor="#17503A"
+        android:pathData="M41,27 h1 a2,2 0 0 1 2,2 v8 a2,2 0 0 1 -2,2 h-1 a2,2 0 0 1 -2,-2 v-8 a2,2 0 0 1 2,-2 z" />
+    <path
+        android:fillColor="#17503A"
+        android:pathData="M66,27 h1 a2,2 0 0 1 2,2 v8 a2,2 0 0 1 -2,2 h-1 a2,2 0 0 1 -2,-2 v-8 a2,2 0 0 1 2,-2 z" />
+
+    <!-- woda (dolny pas karty; zaokrąglone dolne rogi jak karta) -->
+    <path
+        android:fillColor="#BFE4F2"
+        android:pathData="M26,71 C34,69 44,73 54,70 C64,73 74,69 82,71 L82,76 a7,7 0 0 1 -7,7 h-42 a7,7 0 0 1 -7,-7 Z" />
+    <path
+        android:fillColor="#A7D8EC"
+        android:pathData="M26,75 C36,73 45,77 54,74 C63,77 73,73 82,75 L82,76 a7,7 0 0 1 -7,7 h-42 a7,7 0 0 1 -7,-7 Z" />
+
+    <!-- piaszczysta wysepka -->
+    <path
+        android:fillColor="#E6BD6B"
+        android:pathData="M36,76 a18,6 0 1 0 36,0 a18,6 0 1 0 -36,0 z" />
+    <path
+        android:fillColor="#F0D08C"
+        android:pathData="M40,74 a14,3 0 1 0 28,0 a14,3 0 1 0 -28,0 z" />
+
+    <!-- pień (zakrzywiony) + segmenty -->
+    <path
+        android:fillColor="#96602F"
+        android:pathData="M51,76 C50,68 51,60 55,53 L58,54 C55,61 55,69 56,76 Z" />
+    <path
+        android:strokeColor="#7D4E24"
+        android:strokeWidth="1.1"
+        android:strokeLineCap="round"
+        android:pathData="M52,70 l4,-0.7 M52.5,64 l3.5,-0.8 M54,58 l3,-0.8" />
+
+    <!-- liście: bujne, opadające; dwa odcienie -->
+    <path
+        android:fillColor="#2F8F5B"
+        android:pathData="M55,52 C44,45 33,47 27,55 C34,54 45,55 54,57 C46,58 39,61 34,66 C43,61 50,58 56,56 Z" />
+    <path
+        android:fillColor="#57BD8E"
+        android:pathData="M55,52 C48,42 40,38 33,39 C39,45 47,50 56,56 Z" />
+    <path
+        android:fillColor="#2F8F5B"
+        android:pathData="M55,51 C53,40 54,34 57,33 C61,36 61,45 58,55 Z" />
+    <path
+        android:fillColor="#57BD8E"
+        android:pathData="M55,52 C62,42 71,39 78,41 C71,45 62,50 56,56 Z" />
+    <path
+        android:fillColor="#2F8F5B"
+        android:pathData="M55,52 C66,45 77,47 83,55 C76,54 65,55 56,57 C64,58 71,61 76,66 C67,61 60,58 55,56 Z" />
+
+    <!-- korona / kokosy -->
+    <path
+        android:fillColor="#1F6E45"
+        android:pathData="M52.4,52 a2.6,2.6 0 1 0 5.2,0 a2.6,2.6 0 1 0 -5.2,0 z" />
+    <path
+        android:fillColor="#6F4520"
+        android:pathData="M49.2,55 a1.7,1.7 0 1 0 3.4,0 a1.7,1.7 0 1 0 -3.4,0 z" />
+    <path
+        android:fillColor="#6F4520"
+        android:pathData="M56.3,55 a1.7,1.7 0 1 0 3.4,0 a1.7,1.7 0 1 0 -3.4,0 z" />
+</vector>

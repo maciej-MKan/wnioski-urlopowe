@@ -1,0 +1,45 @@
+<!-- Warstwa monochrome dla ikon tematycznych (Android 13+). Jeden kolor — system nadaje tint.
+     Karta jako obrys, palma/wysepka wypełnione, by sylwetka była czytelna. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- obrys karty kalendarza -->
+    <path
+        android:strokeColor="#000000"
+        android:strokeWidth="3.5"
+        android:pathData="M33,34 h42 a6,6 0 0 1 6,6 v35 a6,6 0 0 1 -6,6 h-42 a6,6 0 0 1 -6,-6 v-35 a6,6 0 0 1 6,-6 z" />
+    <!-- pasek nagłówka + kółka -->
+    <path
+        android:fillColor="#000000"
+        android:pathData="M33,34 h42 a6,6 0 0 1 6,6 v3 h-54 v-3 a6,6 0 0 1 6,-6 z" />
+    <path android:fillColor="#000000" android:pathData="M41,28 h3 v10 h-3 z" />
+    <path android:fillColor="#000000" android:pathData="M66,28 h3 v10 h-3 z" />
+
+    <!-- wysepka -->
+    <path
+        android:fillColor="#000000"
+        android:pathData="M39,77 a15,4 0 1 0 30,0 a15,4 0 1 0 -30,0 z" />
+    <!-- pień -->
+    <path
+        android:fillColor="#000000"
+        android:pathData="M51,76 C50,68 51,60 55,53 L58,54 C55,61 55,69 56,76 Z" />
+    <!-- liście -->
+    <path
+        android:fillColor="#000000"
+        android:pathData="M55,52 C44,45 33,47 27,55 C34,54 45,55 54,57 C46,58 39,61 34,66 C43,61 50,58 56,56 Z" />
+    <path
+        android:fillColor="#000000"
+        android:pathData="M55,52 C48,42 40,38 33,39 C39,45 47,50 56,56 Z" />
+    <path
+        android:fillColor="#000000"
+        android:pathData="M55,51 C53,40 54,34 57,33 C61,36 61,45 58,55 Z" />
+    <path
+        android:fillColor="#000000"
+        android:pathData="M55,52 C62,42 71,39 78,41 C71,45 62,50 56,56 Z" />
+    <path
+        android:fillColor="#000000"
+        android:pathData="M55,52 C66,45 77,47 83,55 C76,54 65,55 56,57 C64,58 71,61 76,66 C67,61 60,58 55,56 Z" />
+</vector>
