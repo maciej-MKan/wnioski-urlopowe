@@ -158,13 +158,18 @@ export function viewCreate(root: HTMLElement, st: AppState, rerender: () => void
 
   const fieldsEl = root.querySelector("#fields")!;
   const renderField = (f: Field): string => {
+    // Pole warunkowe (np. godziny opieki tylko przy formie „godziny") — pomiń gdy warunek niespełniony.
+    if (f.widoczneGdy && values[f.widoczneGdy[0]] !== f.widoczneGdy[1]) return "";
     const v = esc(values[f.name] ?? "");
     const cls = f.szerokosc === "full" || f.typ === "textarea" ? "field full" : "field";
     let input: string;
     if (f.typ === "textarea") input = `<textarea id="f_${f.name}">${v}</textarea>`;
     else if (f.typ === "select") input = `<select id="f_${f.name}">${(f.opcje ?? []).map((o) =>
       `<option value="${o.value}" ${values[f.name] === o.value ? "selected" : ""}>${esc(o.label)}</option>`).join("")}</select>`;
-    else input = `<input id="f_${f.name}" type="${f.typ === "date" ? "date" : "text"}" value="${v}" placeholder="${esc(f.placeholder ?? "")}">`;
+    else {
+      const htmlType = f.typ === "date" ? "date" : f.typ === "time" ? "time" : "text";
+      input = `<input id="f_${f.name}" type="${htmlType}" value="${v}" placeholder="${esc(f.placeholder ?? "")}">`;
+    }
     const hint = f.autoZZakresu && values.data_od && values.data_do
       ? `<div class="hint">Zakres obejmuje ${calendarDays(values.data_od, values.data_do)} dni kalendarzowych.</div>` : "";
     return `<div class="${cls}"><label>${esc(f.label)}</label>${input}${hint}</div>`;
@@ -175,8 +180,8 @@ export function viewCreate(root: HTMLElement, st: AppState, rerender: () => void
       `<div class="grid">${t.pola.map(renderField).join("")}</div>
        <h2 style="margin:14px 0 8px">Dane wspólne</h2>
        <div class="grid">${backend.common().map(renderField).join("")}</div>`;
-    // odśwież podpowiedź „auto z zakresu" po zmianie dat
-    fieldsEl.querySelectorAll<HTMLInputElement>('input[type="date"]').forEach((el) =>
+    // Przerysuj po zmianie dat (podpowiedź „auto z zakresu") lub select (np. forma → widoczność godzin).
+    fieldsEl.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input[type="date"], select').forEach((el) =>
       el.addEventListener("change", () => { collect(); renderFields(); }));
   }
   function collect(): void {

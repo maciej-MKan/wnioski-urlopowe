@@ -45,7 +45,7 @@ function trescWypoczynkowy(d: Dane): string {
   const liczba = d.liczba_dni || (cal > 0 ? String(cal) : "");
   const rok = d.rok_rozliczenia || (d.data_od ? d.data_od.slice(0, 4) : "");
   const termin = d.data_od || d.data_do
-    ? `${d.data_od ? `od <strong>${krotko(d.data_od)}</strong>` : ""}${d.data_do ? ` do <strong>${krotko(d.data_do)}</strong>` : ""}`
+    ? `${d.data_od ? `od <strong>${esc(krotko(d.data_od))}</strong>` : ""}${d.data_do ? ` do <strong>${esc(krotko(d.data_do))}</strong>` : ""}`
     : "od dnia ..................... do dnia .....................";
   return `
     <p>Na podstawie art.&nbsp;152 i&nbsp;art.&nbsp;163 Kodeksu pracy zwracam się z uprzejmą prośbą
@@ -57,7 +57,7 @@ function trescWypoczynkowy(d: Dane): string {
 
 function trescOjcowski(d: Dane): string {
   const termin = d.data_od || d.data_do
-    ? `${d.data_od ? `od <strong>${krotko(d.data_od)}</strong>` : ""}${d.data_do ? ` do <strong>${krotko(d.data_do)}</strong>` : ""}`
+    ? `${d.data_od ? `od <strong>${esc(krotko(d.data_od))}</strong>` : ""}${d.data_do ? ` do <strong>${esc(krotko(d.data_do))}</strong>` : ""}`
     : "od dnia ..................... do dnia .....................";
   return `
     <p>Na podstawie art.&nbsp;182<sup>3</sup> Kodeksu pracy zwracam się z wnioskiem
@@ -81,12 +81,12 @@ function trescOpieka(d: Dane): string {
     : (d.godzina_od ? `od ${esc(d.godzina_od)}` : "");
   let termin: string;
   if (d.forma === "godziny" && d.data_od) {
-    termin = `w dniu <strong>${krotko(d.data_od)}</strong>` +
-      (d.data_do && d.data_do !== d.data_od ? ` – <strong>${krotko(d.data_do)}</strong>` : "") +
+    termin = `w dniu <strong>${esc(krotko(d.data_od))}</strong>` +
+      (d.data_do && d.data_do !== d.data_od ? ` – <strong>${esc(krotko(d.data_do))}</strong>` : "") +
       (godziny ? ` w godzinach <strong>${godziny}</strong>` : "") + ".";
   } else if (d.data_od) {
-    termin = `od <strong>${krotko(d.data_od)}</strong>` +
-      (d.data_do ? ` do <strong>${krotko(d.data_do)}</strong>` : "") + ".";
+    termin = `od <strong>${esc(krotko(d.data_od))}</strong>` +
+      (d.data_do ? ` do <strong>${esc(krotko(d.data_do))}</strong>` : "") + ".";
   } else {
     termin = "..................................................................... .";
   }
@@ -108,9 +108,9 @@ function trescOpieka(d: Dane): string {
 function trescWolneZaSwieta(d: Dane): string {
   let termin: string;
   if (d.data_od && d.data_do && d.data_od !== d.data_do) {
-    termin = `w terminie od <strong>${krotko(d.data_od)}</strong> do <strong>${krotko(d.data_do)}</strong>`;
+    termin = `w terminie od <strong>${esc(krotko(d.data_od))}</strong> do <strong>${esc(krotko(d.data_do))}</strong>`;
   } else if (d.data_od) {
-    termin = `w dniu <strong>${krotko(d.data_od)}</strong>`;
+    termin = `w dniu <strong>${esc(krotko(d.data_od))}</strong>`;
   } else {
     termin = "w dniu .....................";
   }
@@ -208,6 +208,9 @@ export function dokumentHtml(rec: LeaveRecord): string {
 export function openPreview(rec: LeaveRecord): void {
   const iframe = document.createElement("iframe");
   iframe.setAttribute("aria-hidden", "true");
+  // Bez allow-scripts (dokument nie ma JS); allow-same-origin — by rodzic mógł wywołać print(),
+  // allow-modals — by dialog druku mógł się otworzyć z wnętrza ramki.
+  iframe.setAttribute("sandbox", "allow-same-origin allow-modals");
   Object.assign(iframe.style, {
     position: "fixed", right: "0", bottom: "0", width: "0", height: "0", border: "0",
   });
