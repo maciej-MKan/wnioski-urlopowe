@@ -3,6 +3,8 @@ package pl.wnioski.urlopowe.data
 /** Dane do kalendarza: rekordy roku, metadane typów (id → nazwa/kolor), święta (data → nazwa). */
 class CalendarRepository(private val api: ApiService) {
 
+    suspend fun health(): HealthResponse = api.health()
+
     suspend fun records(year: Int): List<RecordDto> = api.records(year)
 
     suspend fun types(): Map<String, LeaveTypeDto> = api.types().typy.associateBy { it.id }

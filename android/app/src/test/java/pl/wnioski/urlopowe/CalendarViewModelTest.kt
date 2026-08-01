@@ -35,6 +35,15 @@ class CalendarViewModelTest {
     }
 
     @Test
+    fun noLoginFlagFollowsHealth() {
+        assertFalse(vmWith().state.value.noLogin)  // domyślnie serwer wymaga logowania
+        val bezLog = CalendarViewModel(
+            CalendarRepository(FakeApi(types = types, health = pl.wnioski.urlopowe.data.HealthResponse(bezLogowania = true))),
+        )
+        assertTrue(bezLog.state.value.noLogin)
+    }
+
+    @Test
     fun approveUpdatesStatusAndKeepsSelection() {
         val vm = vmWith(todayRecord(1))
         val cell = vm.state.value.cells.filterNotNull().first { it.iso == today }

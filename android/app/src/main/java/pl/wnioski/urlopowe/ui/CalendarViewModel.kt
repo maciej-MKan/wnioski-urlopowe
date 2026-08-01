@@ -30,6 +30,7 @@ data class CalendarState(
     val selected: DayCell? = null,             // komórka początku zaznaczenia (do panelu szczegółów)
     val selStart: String? = null,              // ISO początku zaznaczonego okresu
     val selEnd: String? = null,                // ISO końca (== selStart dla jednego dnia)
+    val noLogin: Boolean = false,              // serwer w trybie bez logowania → ukryj „Wyloguj"
 )
 
 class CalendarViewModel(private val repo: CalendarRepository) : ViewModel() {
@@ -42,7 +43,15 @@ class CalendarViewModel(private val repo: CalendarRepository) : ViewModel() {
     private var loadedYear: Int? = null
     private var anchor: String? = null   // pierwsze tapnięcie okresu (null = brak trwającego zaznaczania)
 
-    init { load() }
+    init {
+        load()
+        // Tryb bez logowania serwera → chowamy „Wyloguj" (health niezależny od tokenu).
+        viewModelScope.launch {
+            runCatching { repo.health() }.onSuccess { h ->
+                _state.update { it.copy(noLogin = h.bezLogowania) }
+            }
+        }
+    }
 
     fun prevMonth() {
         clearSelection()

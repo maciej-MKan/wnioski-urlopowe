@@ -100,7 +100,10 @@ fun CalendarScreen(
                         menu = false; onOpenBalance(state.ym.year)
                     })
                     DropdownMenuItem(text = { Text("Ustawienia") }, onClick = { menu = false; onSettings() })
-                    DropdownMenuItem(text = { Text("Wyloguj") }, onClick = { menu = false; onLogout() })
+                    // W trybie bez logowania „Wyloguj" nie ma sensu (serwer auto-uwierzytelnia jedyne konto).
+                    if (!state.noLogin) {
+                        DropdownMenuItem(text = { Text("Wyloguj") }, onClick = { menu = false; onLogout() })
+                    }
                 }
             }
         }
