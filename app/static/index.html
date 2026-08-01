@@ -48,26 +48,35 @@
 
   <div class="tabs" id="tabs"></div>
 
-  <div class="card">
+  <div class="card" id="form-card">
+    <div id="sekcje"></div>
     <h2>Dane wspólne</h2>
     <div class="grid" id="wspolne-grid"></div>
     <div class="save-row">
       <button type="button" id="zapisz-profil" class="ghost">Zapisz dane jako mój profil</button>
       <span class="flash hidden" id="saved">zapisano w profilu</span>
     </div>
+    <div class="actions">
+      <button class="primary" id="btnUtworz">Utwórz wniosek</button>
+      <span class="flash hidden" id="working">generuję…</span>
+      <span class="flash hidden" id="dodano"></span>
+    </div>
+    <div id="post" class="hidden"></div>
   </div>
 
-  <div id="sekcje"></div>
+  <p class="note" id="form-note">Wniosek jest zapisywany w kalendarzu urlopów i można pobrać jego PDF. Dane wspólne możesz zapisać jako profil — wstawią się do kolejnych wniosków (i w aplikacji mobilnej).</p>
 
-  <div class="actions">
-    <button class="primary" id="btnDodajPobierz">Dodaj do kalendarza i pobierz</button>
-    <button class="ghost" id="btnDodaj">Dodaj do kalendarza</button>
-    <button class="ghost" id="btnPodglad">Podgląd w nowej karcie</button>
-    <span class="flash hidden" id="working">generuję…</span>
-    <span class="flash hidden" id="dodano"></span>
+  <!-- Podgląd wniosku (osobny widok): druk + zapis PDF -->
+  <div class="card hidden" id="podglad-card">
+    <div class="actions" style="margin-bottom:14px">
+      <button class="ghost" id="pg-wroc">← Wróć</button>
+      <button class="primary" id="pg-drukuj">Drukuj</button>
+      <button class="ghost" id="pg-zapisz">Zapisz PDF</button>
+      <span id="pg-extra"></span>
+    </div>
+    <iframe id="pg-frame" title="Podgląd wniosku"
+            style="width:100%;height:72vh;border:1px solid var(--line);border-radius:10px;background:#fff"></iframe>
   </div>
-
-  <p class="note">Wniosek jest zapisywany w kalendarzu urlopów i można pobrać jego PDF. Dane wspólne możesz zapisać jako profil — wstawią się do kolejnych wniosków (i w aplikacji mobilnej).</p>
 </div>
 
 <div class="modal-overlay hidden" id="modal">
@@ -151,29 +160,27 @@ function budujUI(){
 
   const sek = $("sekcje");
   REJESTR.typy.forEach((t, i) => {
-    const card = document.createElement("div");
-    card.className = "card sekcja" + (i === 0 ? "" : " hidden");
-    card.dataset.sekcja = t.id;
-
-    const h2 = document.createElement("h2");
-    h2.textContent = t.nazwa; card.appendChild(h2);
+    // Jedna karta (jak w demo): pola typu bez osobnej karty; aktywny typ widoczny, reszta ukryta.
+    const box = document.createElement("div");
+    box.className = "sekcja" + (i === 0 ? "" : " hidden");
+    box.dataset.sekcja = t.id;
 
     const grid = document.createElement("div");
     grid.className = "grid";
     t.pola.forEach(p => grid.appendChild(budujPole(p, "f_" + t.id + "_")));
-    card.appendChild(grid);
+    box.appendChild(grid);
 
     if(t.uwaga){
       const note = document.createElement("div");
       note.className = "note"; note.textContent = t.uwaga;
-      card.appendChild(note);
+      box.appendChild(note);
     }
 
     // Reaktywność w obrębie sekcji: widoczność warunkowa + podpowiedź dni.
     grid.querySelectorAll("input,select,textarea").forEach(el =>
       el.addEventListener("change", () => { stosujWidocznosc(t.id); przeliczDni(t.id); }));
 
-    sek.appendChild(card);
+    sek.appendChild(box);
     stosujWidocznosc(t.id);
   });
 
@@ -311,8 +318,8 @@ async function pobierzPdf(id, nazwa){
   URL.revokeObjectURL(url);
 }
 
-// ---- Utworzenie wniosku/wniosków (§15) ----
-async function utworzWnioski(pobierz){
+// ---- Utworzenie wniosku/wniosków (§15) — jak w demo: najpierw utwórz, potem podgląd ----
+async function utworzWnioski(){
   const p = payload();
   const k = await ustalDniZaSwieto(p);
   if(k === null) return;  // anulowano w dialogu
@@ -326,28 +333,63 @@ async function utworzWnioski(pobierz){
       alert(m); return;
     }
     const wnioski = (await r.json()).wnioski || [];
-    if(pobierz){ for(const w of wnioski) await pobierzPdf(w.id, w.nazwa_pliku); }
     const info = $("dodano");
     info.textContent = wnioski.length > 1
-      ? `dodano do kalendarza 2 wnioski (urlop + dzień wolny za święto)`
+      ? `dodano 2 wnioski (urlop + dzień wolny za święto)`
       : `dodano do kalendarza`;
     info.classList.remove("hidden");
-    clearTimeout(window._di); window._di = setTimeout(() => info.classList.add("hidden"), 3000);
+    pokazPost(wnioski, p);
   } finally { busy(false); }
 }
-$("btnDodajPobierz").addEventListener("click", () => utworzWnioski(true));
-$("btnDodaj").addEventListener("click", () => utworzWnioski(false));
+$("btnUtworz").addEventListener("click", utworzWnioski);
 
-// ---- Podgląd HTML ----
-$("btnPodglad").addEventListener("click", async () => {
+// Dopiero po utworzeniu odsłaniamy Podgląd + Do kalendarza (spójnie z demo).
+function pokazPost(wnioski, p){
+  const post = $("post");
+  post.innerHTML =
+    `<p class="muted" style="margin:12px 0 8px">Wniosek zapisany w kalendarzu. Możesz go podejrzeć, wydrukować lub pobrać PDF.</p>
+     <div class="actions">
+       <button class="primary" id="btnPodglad">Podgląd</button>
+       <button class="ghost" id="btnDoKal">Do kalendarza</button>
+     </div>`;
+  post.classList.remove("hidden");
+  $("btnPodglad").addEventListener("click", () => otworzPodglad(wnioski, p));
+  $("btnDoKal").addEventListener("click", () => { location.href = "/"; });
+}
+
+// ---- Podgląd (osobny widok): render HTML wniosku + druk + zapis PDF na dysk ----
+async function otworzPodglad(wnioski, p){
   busy(true);
+  let html = "";
   try{
-    const r = await api.postJson("/api/podglad", payload());
+    const r = await api.postJson("/api/podglad", p);
     if(!r.ok){ alert("Błąd podglądu: " + r.status); return; }
-    const html = await r.text();
-    const w = window.open("", "_blank");
-    w.document.write(html); w.document.close();
+    html = await r.text();
   } finally { busy(false); }
+
+  $("pg-frame").srcdoc = html;
+  $("pg-zapisz").onclick = () => pobierzPdf(wnioski[0].id, wnioski[0].nazwa_pliku);
+  const extra = $("pg-extra"); extra.innerHTML = "";
+  if(wnioski.length > 1){
+    const b = document.createElement("button");
+    b.className = "ghost"; b.textContent = "Zapisz PDF (dzień wolny)";
+    b.addEventListener("click", () => pobierzPdf(wnioski[1].id, wnioski[1].nazwa_pliku));
+    extra.appendChild(b);
+  }
+  przelaczPodglad(true);
+}
+function przelaczPodglad(on){
+  // #tabs ma display:flex (wygrywa nad .hidden) — chowamy je inline.
+  $("tabs").style.display = on ? "none" : "flex";
+  $("form-card").classList.toggle("hidden", on);
+  $("form-note").classList.toggle("hidden", on);
+  $("podglad-card").classList.toggle("hidden", !on);
+}
+$("pg-wroc").addEventListener("click", () => przelaczPodglad(false));
+$("pg-drukuj").addEventListener("click", () => {
+  const f = $("pg-frame");
+  f.contentWindow.focus();
+  f.contentWindow.print();
 });
 
 // ---- Start ----
