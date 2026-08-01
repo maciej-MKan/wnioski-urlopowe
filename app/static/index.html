@@ -61,6 +61,7 @@
       <span class="flash hidden" id="working">generuję…</span>
       <span class="flash hidden" id="dodano"></span>
     </div>
+    <div class="hint" id="form-err" style="color:#d0453b;margin-top:6px"></div>
     <div id="post" class="hidden"></div>
   </div>
 
@@ -99,6 +100,9 @@
 let REJESTR = null;      // { wspolne:[...], typy:[...] } — z /api/typy
 let aktywnyTyp = null;
 
+// Pola obowiązkowe (walidacja przed utworzeniem wniosku).
+const WYMAGANE = new Set(["miejscowosc", "pracodawca", "data_od", "data_do"]);
+
 // ---- Budowa pojedynczego pola z deskryptora ----
 function budujPole(pole, idPrefix){
   const wrap = document.createElement("div");
@@ -108,6 +112,10 @@ function budujPole(pole, idPrefix){
   const id = idPrefix + pole.name;
   const lab = document.createElement("label");
   lab.textContent = pole.label; lab.htmlFor = id;
+  if(WYMAGANE.has(pole.name)){
+    const gw = document.createElement("span"); gw.textContent = " *"; gw.style.color = "#d0453b";
+    lab.appendChild(gw);
+  }
   wrap.appendChild(lab);
 
   let inp;
@@ -191,6 +199,21 @@ function wybierzTyp(id){
   aktywnyTyp = id;
   document.querySelectorAll(".tab").forEach(x => x.classList.toggle("active", x.dataset.typ === id));
   document.querySelectorAll(".sekcja").forEach(s => s.classList.toggle("hidden", s.dataset.sekcja !== id));
+  resetPost();  // po zmianie rodzaju urlopu — świeża zakładka (bez „dodano"/Podglądu)
+}
+
+// Czyści stan po utworzeniu wniosku (info „dodano", akcje Podgląd/Do kalendarza, błąd).
+function resetPost(){
+  const post = $("post"); post.innerHTML = ""; post.classList.add("hidden");
+  $("dodano").classList.add("hidden");
+  $("form-err").textContent = "";
+}
+
+// Brakujące pola wymagane w payloadzie → lista etykiet (pusta = OK).
+function brakujaceWymagane(p){
+  const wymagane = [["miejscowosc","Miejscowość"],["pracodawca","Pracodawca / adresat"],
+                    ["data_od","Data od"],["data_do","Data do"]];
+  return wymagane.filter(([k]) => !((p[k] || "").toString().trim())).map(([,label]) => label);
 }
 
 // ---- Widoczność warunkowa (widoczne_gdy) ----
@@ -321,6 +344,9 @@ async function pobierzPdf(id, nazwa){
 // ---- Utworzenie wniosku/wniosków (§15) — jak w demo: najpierw utwórz, potem podgląd ----
 async function utworzWnioski(){
   const p = payload();
+  const brak = brakujaceWymagane(p);
+  if(brak.length){ $("form-err").textContent = "Uzupełnij wymagane pola: " + brak.join(", ") + "."; return; }
+  $("form-err").textContent = "";
   const k = await ustalDniZaSwieto(p);
   if(k === null) return;  // anulowano w dialogu
   p.dni_za_swieto = k;

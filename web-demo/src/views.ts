@@ -18,6 +18,9 @@ const MIES = ["styczeń", "luty", "marzec", "kwiecień", "maj", "czerwiec",
 const esc = (s: string): string => s.replace(/[&<>"]/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c] as string));
 
+// Pola obowiązkowe (walidacja przed utworzeniem wniosku) — spójnie z web.
+const WYMAGANE = new Set(["miejscowosc", "pracodawca", "data_od", "data_do"]);
+
 const alphaHex: Record<Status, string> = { zaakceptowany: "d9", do_akceptacji: "70", odrzucony: "30" };
 function cellColor(rec: LeaveRecord | undefined): string {
   if (!rec) return "transparent";
@@ -151,7 +154,16 @@ export function viewCreate(root: HTMLElement, st: AppState, rerender: () => void
   tabs.innerHTML = typy.map((t) =>
     `<span class="tab ${t.id === activeTyp ? "on" : ""}" data-typ="${t.id}">${esc(t.nazwa)}</span>`).join("");
   tabs.querySelectorAll<HTMLElement>("[data-typ]").forEach((el) =>
-    el.addEventListener("click", () => { collect(); activeTyp = el.dataset.typ!; syncTabs(); renderFields(); }));
+    el.addEventListener("click", () => {
+      collect(); activeTyp = el.dataset.typ!; syncTabs(); renderFields();
+      resetPost();  // po zmianie rodzaju urlopu — świeża zakładka (bez „dodano"/Podglądu)
+    }));
+
+  // Czyści stan po utworzeniu wniosku (info „dodano", akcje Podgląd/Do kalendarza).
+  const resetPost = (): void => {
+    root.querySelector("#post")!.innerHTML = "";
+    root.querySelector("#ok")!.classList.add("hidden");
+  };
 
   const syncTabs = () => tabs.querySelectorAll<HTMLElement>("[data-typ]").forEach((el) =>
     el.classList.toggle("on", el.dataset.typ === activeTyp));
@@ -172,7 +184,8 @@ export function viewCreate(root: HTMLElement, st: AppState, rerender: () => void
     }
     const hint = f.autoZZakresu && values.data_od && values.data_do
       ? `<div class="hint">Zakres obejmuje ${calendarDays(values.data_od, values.data_do)} dni kalendarzowych.</div>` : "";
-    return `<div class="${cls}"><label>${esc(f.label)}</label>${input}${hint}</div>`;
+    const gw = WYMAGANE.has(f.name) ? ` <span style="color:#d0453b">*</span>` : "";
+    return `<div class="${cls}"><label>${esc(f.label)}${gw}</label>${input}${hint}</div>`;
   };
   function renderFields(): void {
     const t = typeById(activeTyp)!;
@@ -197,6 +210,10 @@ export function viewCreate(root: HTMLElement, st: AppState, rerender: () => void
   root.querySelector("#submit")!.addEventListener("click", () => {
     collect();
     const errEl = root.querySelector("#err") as HTMLElement;
+    const wymagane: [string, string][] = [["miejscowosc", "Miejscowość"], ["pracodawca", "Pracodawca / adresat"],
+      ["data_od", "Data od"], ["data_do", "Data do"]];
+    const brak = wymagane.filter(([k]) => !(values[k] || "").trim()).map(([, l]) => l);
+    if (brak.length) { errEl.textContent = "Uzupełnij wymagane pola: " + brak.join(", ") + "."; return; }
     const err = validatePeriod(values);
     if (err) { errEl.textContent = err; return; }
     errEl.textContent = "";
