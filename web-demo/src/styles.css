@@ -78,3 +78,16 @@ button.ghost { background: transparent; border: 1px solid var(--line); color: va
 .muted { color: var(--muted); font-size: .85rem; }
 .flash { color: var(--ok); font-weight: 600; font-size: .85rem; margin-left: 10px; }
 .hidden { display: none; }
+
+/* Bilans salda — paski wykorzystania (spójne z web /saldo) */
+:root { --plan: #c9a227; --track: #eef1f6; --zla: #d0453b; }
+@media (prefers-color-scheme: dark) { :root { --track: #232936; } }
+.poz { margin: 14px 0; }
+.poz .top { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  font-size: .9rem; margin-bottom: 5px; }
+.poz .ety { font-weight: 600; }
+.poz .liczby { color: var(--muted); }
+.bar { height: 14px; background: var(--track); border-radius: 8px; overflow: hidden; display: flex; }
+.bar .uzyte { background: var(--ok); }
+.bar .plan { background: var(--plan); }
+.bar .uzyte.over { background: var(--zla); }

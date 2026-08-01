@@ -227,17 +227,28 @@ export function viewUstawienia(root: HTMLElement, rerender: () => void): void {
 
 function renderBalanceCards(root: HTMLElement): void {
   const items = backend.balance();
-  const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
-  root.innerHTML = `<h2>Bilans wykorzystania (2026)</h2>` + items.map((it) => `
-    <div class="card">
-      <b>${esc(it.etykieta)}</b>
-      <div class="metrics">
-        <div class="metric"><div class="lab">Limit</div><div class="val">${fmt(it.limit)}</div><div class="lab">${it.jednostka}</div></div>
-        <div class="metric"><div class="lab">Wykorzystano</div><div class="val">${fmt(it.wykorzystano)}</div><div class="lab">${it.jednostka}</div></div>
-        <div class="metric"><div class="lab">Zaplanowano</div><div class="val">${fmt(it.zaplanowano)}</div><div class="lab">${it.jednostka}</div></div>
-        <div class="metric hl"><div class="lab">Pozostało</div><div class="val">${fmt(it.pozostalo)}</div><div class="lab">${it.jednostka}</div></div>
+  const fmt = (n: number) => (n == null ? "—" : Number.isInteger(n) ? String(n) : n.toFixed(1));
+  const rows = items.map((p) => {
+    const baza = p.limit > 0 ? p.limit : Math.max(p.wykorzystano + p.zaplanowano, 1);
+    const over = p.wykorzystano > p.limit;
+    const uzyteW = Math.min(100, (100 * p.wykorzystano) / baza);
+    const planW = Math.max(0, Math.min(100 - (100 * p.wykorzystano) / baza, (100 * p.zaplanowano) / baza));
+    let txt = `${fmt(p.wykorzystano)} / ${fmt(p.limit)} ${p.jednostka}`;
+    if (p.zaplanowano) txt += ` (+${fmt(p.zaplanowano)} zaplanowane)`;
+    txt += ` · pozostało ${fmt(p.pozostalo)}`;
+    return `<div class="poz">
+      <div class="top"><span class="ety">${esc(p.etykieta)}</span><span class="liczby">${txt}</span></div>
+      <div class="bar">
+        <div class="uzyte${over ? " over" : ""}" style="width:${uzyteW}%"></div>
+        <div class="plan" style="width:${planW}%"></div>
       </div>
-    </div>`).join("");
+    </div>`;
+  }).join("");
+  root.innerHTML = `<div class="card">
+    <h2>Bilans wykorzystania (2026)</h2>
+    ${items.length ? rows : '<p class="muted">Brak aktywnych limitów.</p>'}
+    <p class="muted">Zielony — wykorzystane (zaakceptowane); żółty — zaplanowane (do akceptacji).</p>
+  </div>`;
 }
 
 // ---------------- Mój profil (karta) ----------------
