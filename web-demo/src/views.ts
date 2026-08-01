@@ -1,5 +1,6 @@
 import { backend } from "./backend";
 import { STATUS_LABEL, calendarDays, type LeaveRecord, type Status } from "./domain";
+import { openPreview } from "./pdf";
 import { typeById, type Field } from "./registry";
 
 export type View = "kalendarz" | "nowy" | "saldo" | "ustawienia";
@@ -260,27 +261,4 @@ function renderProfileCard(root: HTMLElement, rerender: () => void): void {
   });
 }
 
-// ---------------- Podgląd / „PDF" (druk) ----------------
-function openPreview(rec: LeaveRecord): void {
-  const t = typeById(rec.typ)?.nazwa ?? rec.typ;
-  const d = rec.dane;
-  const w = window.open("", "_blank");
-  if (!w) return;
-  w.document.write(`<!doctype html><html lang="pl"><head><meta charset="utf-8">
-    <title>${esc(t)}</title>
-    <style>body{font-family:system-ui,sans-serif;max-width:640px;margin:40px auto;padding:0 20px;color:#111}
-    h1{font-size:1.2rem}.row{margin:6px 0}.k{color:#666;font-size:.85rem}pre{white-space:pre-wrap;font:inherit}
-    .note{margin-top:24px;font-size:.75rem;color:#999;border-top:1px solid #ddd;padding-top:8px}</style></head>
-    <body>
-    <div class="row k">${esc(d.miejscowosc || "")}, ${esc(d.data || "")}</div>
-    <h1>Wniosek — ${esc(t)}</h1>
-    <div class="row"><span class="k">Pracownik:</span> ${esc(d.imie_nazwisko || "")}</div>
-    ${d.stanowisko ? `<div class="row"><span class="k">Stanowisko:</span> ${esc(d.stanowisko)}</div>` : ""}
-    <div class="row"><span class="k">Okres:</span> ${esc(rec.dataOd)} – ${esc(rec.dataDo)}</div>
-    ${d.pracodawca ? `<div class="row"><span class="k">Pracodawca / adresat:</span><pre>${esc(d.pracodawca)}</pre></div>` : ""}
-    <div class="note">DEMO — uproszczony podgląd HTML zamiast PDF z WeasyPrint. Użyj „Drukuj → Zapisz jako PDF".</div>
-    </body></html>`);
-  w.document.close();
-  w.focus();
-  setTimeout(() => w.print(), 300);
-}
+// Podgląd / „PDF" (druk) — patrz ./pdf.ts (wierne odwzorowanie szablonów backendu + druk z iframe).
