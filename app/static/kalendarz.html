@@ -61,8 +61,6 @@
   .mini-btn{border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:.78rem;font-weight:600;
        cursor:pointer;background:var(--card);color:var(--ink)}
   .mini-btn:hover{border-color:var(--accent)}
-  .mini-btn.gro{border-color:var(--ok);color:var(--ok)}
-  .mini-btn.czer{border-color:var(--zla,#d0453b);color:var(--zla,#d0453b)}
   .mini-form{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;width:100%;margin-top:8px;
        padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
   .mini-form label{margin-bottom:3px}
@@ -304,8 +302,8 @@ function pokazSzczegoly(y,m,d,reki,swieto){
       if(r.ma_zalacznik) akcje.appendChild(linkPliku("Załącznik", `/api/rekordy/${r.id}/zalacznik`));
       akcje.appendChild(przyciskZalacznik(r.id, r.ma_zalacznik));
     }
-    if(r.status !== "zaakceptowany") akcje.appendChild(przyciskAkcji("Zaakceptuj","gro",()=>zmienStatus(r.id,"zaakceptowany")));
-    if(r.status !== "odrzucony")   akcje.appendChild(przyciskAkcji("Odrzuć","czer",()=>zmienStatus(r.id,"odrzucony")));
+    if(r.status !== "zaakceptowany") akcje.appendChild(przyciskAkcji("Zaakceptuj","",()=>zmienStatus(r.id,"zaakceptowany")));
+    if(r.status !== "odrzucony")   akcje.appendChild(przyciskAkcji("Odrzuć","",()=>zmienStatus(r.id,"odrzucony")));
     akcje.appendChild(przyciskAkcji("Koryguj okres","",()=>formularzKorekty(row,r)));
     akcje.appendChild(przyciskUsun(r.id));
     row.appendChild(akcje);
@@ -336,7 +334,7 @@ function przyciskZalacznik(id, ma){
   return wrap;
 }
 function przyciskUsun(id){
-  const b=document.createElement("button"); b.className="mini-btn czer"; b.textContent="Usuń";
+  const b=document.createElement("button"); b.className="mini-btn"; b.textContent="Usuń";
   let pewny=false;
   b.addEventListener("click", async () => {
     if(!pewny){ pewny=true; b.textContent="Na pewno? kliknij ponownie"; return; }
