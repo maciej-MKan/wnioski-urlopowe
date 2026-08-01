@@ -84,7 +84,22 @@ Zmienne środowiskowe (opcjonalne):
 | `WNIOSKI_SECRET` | sekret podpisu JWT | generowany i zapisany w `secret.key` w katalogu danych |
 | `WNIOSKI_OWNER` / `WNIOSKI_OWNER_PASSWORD` | konto właściciela przy migracji starej bazy | `owner` / hasło losowe (w logach) |
 | `WNIOSKI_ALLOW_REGISTER` | czy dozwolona rejestracja (`0` wyłącza) | `1` |
+| `WNIOSKI_NO_LOGIN` | **tryb bez logowania** dla instancji jednoużytkownikowej (`1` włącza) | `0` |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | włączają **logowanie przez Google** | brak → wyłączone |
+
+**Tryb bez logowania (opcjonalny).** `WNIOSKI_NO_LOGIN=1` przełącza instancję w tryb
+jednoużytkownikowy bez ekranu logowania — wygodny, gdy każdy hostuje backend tylko dla siebie:
+
+- gdy w bazie jest **dokładnie jedno** konto, backend uwierzytelnia je automatycznie przy każdym
+  żądaniu (token pomijany), a web i klient mobilny wchodzą od razu, bez logowania;
+- gdy kont **nie ma**, aplikacja wymusza jednorazowe **utworzenie jedynego konta** (rejestracja
+  dozwolona tylko wtedy);
+- gdy kont jest **więcej niż jedno**, flaga jest nieaktywna (niejednoznaczne) i obowiązuje zwykłe
+  logowanie tokenem.
+
+Stan trybu zgłasza `/api/health` (`bez_logowania`, `wymaga_konta`); w tym trybie znika też
+„Wyloguj”. Klient mobilny sprawdza dodatkowo zgodność wersji API (`api_version` z `/api/health`)
+i blokuje logowanie, gdy aplikacja i serwer są niezgodne.
 
 **Logowanie przez Google (opcjonalne).** Ustaw `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` (klient
 OAuth z Google Cloud Console), a w konfiguracji klienta dodaj **Authorized redirect URI**:
