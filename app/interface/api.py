@@ -19,7 +19,7 @@ from typing import Any, Callable, Optional, Protocol
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
 from ..application.auth import AuthService
@@ -42,6 +42,14 @@ from .serializers import (
 
 _log = logging.getLogger("wnioski")
 _STATIC = Path(__file__).resolve().parent.parent / "static"
+
+
+def _page(filename: str) -> HTMLResponse:
+    """Serwuje stronę HTML z cache-bustingiem: podstawia `APP_VERSION` w `?v=__VER__`
+    (assety bustują się przy zmianie wersji) i wyłącza cache samej strony (`no-cache`),
+    by po deployu klient od razu pobrał aktualny `common.js`/`common.css`."""
+    html = (_STATIC / filename).read_text(encoding="utf-8").replace("__VER__", APP_VERSION)
+    return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
 
 _ATTACHMENT_MAX = 5 * 1024 * 1024  # 5 MB — upper size limit of an attached file (§13.1)
 # §19: deep link zwracający token do klienta Android (Google OAuth w Custom Tab/przeglądarce).
@@ -110,20 +118,20 @@ def create_router() -> APIRouter:
     # Kalendarz jest stroną główną; generator wniosków przeniesiony na /nowy.
     @router.get("/", response_class=HTMLResponse)
     @router.get("/kalendarz", response_class=HTMLResponse)  # alias wsteczny
-    def calendar() -> FileResponse:
-        return FileResponse(_STATIC / "kalendarz.html")
+    def calendar() -> HTMLResponse:
+        return _page("kalendarz.html")
 
     @router.get("/nowy", response_class=HTMLResponse)
-    def generator() -> FileResponse:
-        return FileResponse(_STATIC / "index.html")
+    def generator() -> HTMLResponse:
+        return _page("index.html")
 
     @router.get("/saldo", response_class=HTMLResponse)
-    def balance_page() -> FileResponse:
-        return FileResponse(_STATIC / "saldo.html")
+    def balance_page() -> HTMLResponse:
+        return _page("saldo.html")
 
     @router.get("/ustawienia", response_class=HTMLResponse)
-    def settings_page() -> FileResponse:
-        return FileResponse(_STATIC / "ustawienia.html")
+    def settings_page() -> HTMLResponse:
+        return _page("ustawienia.html")
 
     # --- Auth (public) --------------------------------------------------------------
     @router.post("/api/token")
