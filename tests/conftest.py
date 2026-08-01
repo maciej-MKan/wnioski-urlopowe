@@ -158,6 +158,9 @@ class FakeUserRepository(UserRepository):
     def count(self):
         return len(self._by_id)
 
+    def first(self):
+        return self._by_id[min(self._by_id)] if self._by_id else None
+
     def get_profile(self, user_id):
         return dict(self._profiles.get(user_id, {}))
 

@@ -277,6 +277,14 @@ class SqliteUserRepository(UserRepository):
         finally:
             conn.close()
 
+    def first(self) -> Optional[User]:
+        conn = _connect(self._db)
+        try:
+            row = conn.execute("SELECT * FROM app_user ORDER BY id LIMIT 1").fetchone()
+        finally:
+            conn.close()
+        return self._from_row(row) if row else None
+
     def get_profile(self, user_id: int) -> dict:
         conn = _connect(self._db)
         try:

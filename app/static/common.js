@@ -70,28 +70,30 @@ function fmtZakres(od, do_){
 let _HEALTH = null;
 function onUnauthorized(){ clearToken(); showLogin(); }
 
-function showLogin(){
+function showLogin(setup){
   if(document.getElementById("login-overlay")) return;  // już pokazane
+  // `setup` = tryb bez logowania bez konta: wymuś utworzenie jedynego konta (bez logowania/Google).
   const rejestracja = !_HEALTH || _HEALTH.rejestracja !== false;
   const ov = document.createElement("div");
   ov.id = "login-overlay"; ov.className = "modal-overlay";
   ov.innerHTML =
     `<div class="modal-box">
-       <h3 id="login-tytul" style="margin:0 0 12px">Logowanie</h3>
+       <h3 id="login-tytul" style="margin:0 0 12px">${setup ? "Utwórz konto" : "Logowanie"}</h3>
+       ${setup ? '<p class="muted" style="margin:0 0 12px">Tryb bez logowania — utwórz jedyne konto aplikacji.</p>' : ''}
        <div style="margin-bottom:10px"><label>Użytkownik</label>
          <input id="login-user" autocomplete="username" style="width:100%"></div>
        <div><label>Hasło</label>
          <input id="login-pass" type="password" autocomplete="current-password" style="width:100%"></div>
        <p id="login-err" class="login-err hidden"></p>
        <div class="login-actions">
-         ${rejestracja ? '<button id="login-toggle" class="ghost">Załóż konto</button>' : ''}
-         <button id="login-submit" class="prim">Zaloguj</button>
+         ${(rejestracja && !setup) ? '<button id="login-toggle" class="ghost">Załóż konto</button>' : ''}
+         <button id="login-submit" class="prim">${setup ? "Utwórz konto" : "Zaloguj"}</button>
        </div>
-       ${(_HEALTH && _HEALTH.google) ? '<div class="login-google"><span>lub</span></div>' +
+       ${(!setup && _HEALTH && _HEALTH.google) ? '<div class="login-google"><span>lub</span></div>' +
          '<button id="login-google" class="google-btn">Zaloguj przez Google</button>' : ''}
      </div>`;
   document.body.appendChild(ov);
-  let tryb = "login";
+  let tryb = setup ? "register" : "login";
   const err = m => { const e = $("login-err"); e.textContent = m; e.classList.remove("hidden"); };
   if($("login-toggle")) $("login-toggle").addEventListener("click", () => {
     tryb = tryb === "login" ? "register" : "login";
@@ -128,13 +130,17 @@ function showLogin(){
 }
 
 // Wstawia do nawigacji info o zalogowanym użytkowniku + wylogowanie.
-function addUserChip(username){
+function addUserChip(username, bezWylogowania){
   const nav = document.querySelector(".topnav");
   if(!nav || document.getElementById("user-chip")) return;
   const chip = document.createElement("span"); chip.id = "user-chip"; chip.className = "user-chip";
-  chip.innerHTML = `<span>${username}</span> · <a href="#" id="logout-link">Wyloguj</a>`;
+  // W trybie bez logowania „Wyloguj" nie ma sensu (backend uwierzytelnia jedyne konto).
+  chip.innerHTML = bezWylogowania
+    ? `<span>${username}</span>`
+    : `<span>${username}</span> · <a href="#" id="logout-link">Wyloguj</a>`;
   nav.appendChild(chip);
-  $("logout-link").addEventListener("click", e => { e.preventDefault(); clearToken(); location.reload(); });
+  if(!bezWylogowania)
+    $("logout-link").addEventListener("click", e => { e.preventDefault(); clearToken(); location.reload(); });
 }
 
 // --- Start: badge środowiska + bramka logowania ---
@@ -152,6 +158,13 @@ function addUserChip(username){
     if(nav){ const b = document.createElement("span"); b.className = "env-badge";
       b.textContent = _HEALTH.srodowisko.toUpperCase(); b.title = "Środowisko nieprodukcyjne"; nav.prepend(b); }
   }
+  // Tryb bez logowania: backend uwierzytelnia jedyne konto — pomiń bramkę logowania.
+  if(_HEALTH && _HEALTH.bez_logowania){
+    try{ addUserChip((await api.get("/api/me")).username, true); }catch(e){}
+    return;
+  }
+  // Tryb bez logowania, ale brak konta — wymuś utworzenie jedynego konta.
+  if(_HEALTH && _HEALTH.wymaga_konta){ showLogin(true); return; }
   // Bramka: bez tokenu — pokaż logowanie; z tokenem — potwierdź i pokaż użytkownika.
   if(!getToken()){ showLogin(); return; }
   try{ addUserChip((await api.get("/api/me")).username); }

@@ -51,11 +51,13 @@ def default_container() -> Container:
     generator = WeasyPrintDocumentGenerator()  # shared, stateless
     tokens = TokenService(load_secret(data_dir))
     allow_register = os.environ.get("WNIOSKI_ALLOW_REGISTER", "1") != "0"
+    no_login = os.environ.get("WNIOSKI_NO_LOGIN", "0") == "1"
     auth = AuthService(
         users=SqliteUserRepository(data_dir),
         hasher=BcryptPasswordHasher(),
         tokens=tokens,
         allow_register=allow_register,
+        no_login=no_login,
     )
 
     def service_for(user_id: int) -> LeaveService:

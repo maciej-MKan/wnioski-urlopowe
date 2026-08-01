@@ -27,16 +27,33 @@ class AuthService:
         tokens: TokenIssuer,
         clock: Callable[[], str] = _now_iso,
         allow_register: bool = True,
+        no_login: bool = False,
     ) -> None:
         self._users = users
         self._hasher = hasher
         self._tokens = tokens
         self._clock = clock
         self._allow_register = allow_register
+        self._no_login = no_login
+
+    @property
+    def no_login(self) -> bool:
+        """Single-user mode without a login screen (§ tryb bez logowania)."""
+        return self._no_login
 
     @property
     def allow_register(self) -> bool:
+        # W trybie bez logowania rejestracja służy tylko utworzeniu jedynego konta (gdy baza pusta).
+        if self._no_login:
+            return self._users.count() == 0
         return self._allow_register
+
+    def user_count(self) -> int:
+        return self._users.count()
+
+    def sole_user(self) -> Optional[User]:
+        """Jedyne konto, gdy istnieje dokładnie jedno (tryb bez logowania), inaczej None."""
+        return self._users.first() if self._users.count() == 1 else None
 
     def register(self, username: str, password: str) -> User:
         username = (username or "").strip()

@@ -73,8 +73,15 @@ def _container(request: Request) -> Container:
 
 
 def current_user(request: Request, token: Optional[str] = Depends(_oauth2)) -> User:
-    """Resolves the authenticated user from the bearer token, or 401."""
-    user = _container(request).auth.user_from_token(token or "")
+    """Resolves the authenticated user: sole account in no-login mode, else the bearer token."""
+    auth = _container(request).auth
+    if auth.no_login:
+        # Tryb bez logowania: gdy istnieje dokładnie jeden użytkownik — uwierzytelniamy go
+        # niezależnie od tokenu. Przy 0 lub >1 użytkownikach schodzimy do zwykłej ścieżki tokenu.
+        sole = auth.sole_user()
+        if sole is not None:
+            return sole
+    user = auth.user_from_token(token or "")
     if user is None:
         raise HTTPException(status_code=401, detail="Nieautoryzowany",
                             headers={"WWW-Authenticate": "Bearer"})
@@ -350,14 +357,19 @@ def create_router() -> APIRouter:
     def health(request: Request) -> dict:
         # `srodowisko` (prod/dev) → badge w UI; `rejestracja` → czy pokazać formularz rejestracji;
         # `wersja`/`api_version` → kontrola zgodności klienta (mobilny sprawdza `api_version`).
+        # `bez_logowania` → klient pomija ekran logowania; `wymaga_konta` → wymuś utworzenie konta.
         container = _container(request)
+        auth = container.auth
+        no_login = auth.no_login
         return {
             "status": "ok",
             "srodowisko": os.environ.get("WNIOSKI_ENV", "prod"),
-            "rejestracja": container.auth.allow_register,
+            "rejestracja": auth.allow_register,
             "google": container.google is not None,
             "wersja": APP_VERSION,
             "api_version": API_VERSION,
+            "bez_logowania": no_login and auth.sole_user() is not None,
+            "wymaga_konta": no_login and auth.user_count() == 0,
         }
 
     return router

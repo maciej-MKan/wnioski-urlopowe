@@ -98,6 +98,13 @@ class UserRepository(ABC):
         """Number of user accounts (used to decide owner seeding)."""
 
     @abstractmethod
+    def first(self) -> Optional[User]:
+        """The earliest-created user (lowest id), or None when there are none.
+
+        Used by single-user, no-login mode to resolve the sole account.
+        """
+
+    @abstractmethod
     def get_profile(self, user_id: int) -> dict:
         """User's saved profile (default common fields) as a dict, or `{}` (§19)."""
 
