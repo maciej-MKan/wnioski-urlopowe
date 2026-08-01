@@ -18,12 +18,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.runtime.remember
 import pl.wnioski.urlopowe.data.AppContainer
-import pl.wnioski.urlopowe.ui.BalanceScreen
 import pl.wnioski.urlopowe.ui.CalendarScreen
 import pl.wnioski.urlopowe.ui.CreateScreen
 import pl.wnioski.urlopowe.ui.LoginScreen
 import pl.wnioski.urlopowe.ui.ManualScreen
-import pl.wnioski.urlopowe.ui.ProfileScreen
+import pl.wnioski.urlopowe.ui.SaldoScreen
+import pl.wnioski.urlopowe.ui.UstawieniaScreen
 
 class MainActivity : ComponentActivity() {
     // Token przyniesiony deep linkiem z logowania Google (odczytany przez App).
@@ -61,13 +61,13 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-/** Prosty stan nawigacji (bez lib Navigation — 3 ekrany). */
+/** Prosty stan nawigacji (bez lib Navigation). */
 private sealed interface Nav {
     data object Calendar : Nav
-    data class Balance(val year: Int) : Nav
+    data class Saldo(val year: Int) : Nav
     data class Create(val from: String?, val to: String?) : Nav
     data class Manual(val from: String?, val to: String?) : Nav
-    data object Profile : Nav
+    data object Ustawienia : Nav
 }
 
 @Composable
@@ -93,12 +93,12 @@ fun App(container: AppContainer, pendingToken: String? = null, onTokenConsumed: 
         Nav.Calendar -> CalendarScreen(
             container,
             onLogout = { container.auth.logout(); nav = Nav.Calendar; loggedIn = false },
-            onOpenBalance = { nav = Nav.Balance(it) },
+            onOpenBalance = { nav = Nav.Saldo(it) },
             onCreate = { from, to -> nav = Nav.Create(from, to) },
             onManual = { from, to -> nav = Nav.Manual(from, to) },
-            onProfile = { nav = Nav.Profile },
+            onSettings = { nav = Nav.Ustawienia },
         )
-        is Nav.Balance -> BalanceScreen(container, initialYear = n.year, onBack = { nav = Nav.Calendar })
+        is Nav.Saldo -> SaldoScreen(container, initialYear = n.year, onBack = { nav = Nav.Calendar })
         is Nav.Create -> CreateScreen(
             container, prefillFrom = n.from, prefillTo = n.to,
             onBack = { nav = Nav.Calendar }, onDone = { nav = Nav.Calendar },
@@ -107,6 +107,6 @@ fun App(container: AppContainer, pendingToken: String? = null, onTokenConsumed: 
             container, prefillFrom = n.from, prefillTo = n.to,
             onBack = { nav = Nav.Calendar }, onDone = { nav = Nav.Calendar },
         )
-        Nav.Profile -> ProfileScreen(container, onBack = { nav = Nav.Calendar })
+        Nav.Ustawienia -> UstawieniaScreen(container, onBack = { nav = Nav.Calendar })
     }
 }

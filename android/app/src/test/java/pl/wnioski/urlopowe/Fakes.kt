@@ -30,6 +30,7 @@ class FakeApi(
     private val registry: RegistryDto = RegistryDto(),
     private val workingDays: Double = 0.0,
     private val health: HealthResponse = HealthResponse(),
+    private val healthThrows: Boolean = false,
     profile: Map<String, String> = emptyMap(),
 ) : ApiService {
 
@@ -53,7 +54,10 @@ class FakeApi(
         registered = body
         return TokenResponse(accessToken = "tok-${body.username}")
     }
-    override suspend fun health(): HealthResponse = health
+    override suspend fun health(): HealthResponse {
+        if (healthThrows) throw RuntimeException("brak połączenia")
+        return health
+    }
     override suspend fun me(): Me = Me(1, "ola")
     override suspend fun getProfile(): Map<String, String> = profileData
     override suspend fun saveProfile(body: Map<String, String>): Map<String, String> {
@@ -121,4 +125,10 @@ class FakeStore(initial: String? = null) : TokenStore {
     override fun get(): String? = token
     override fun set(token: String) { this.token = token }
     override fun clear() { token = null }
+}
+
+class FakeServerUrlStore(initial: String? = "http://test.local/") : pl.wnioski.urlopowe.data.ServerUrlStore {
+    private var url: String? = initial
+    override fun get(): String? = url
+    override fun set(url: String) { this.url = url }
 }

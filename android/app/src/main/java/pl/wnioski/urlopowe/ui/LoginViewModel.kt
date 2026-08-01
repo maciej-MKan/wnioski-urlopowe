@@ -8,11 +8,19 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import pl.wnioski.urlopowe.data.AuthRepository
+import pl.wnioski.urlopowe.data.ServerUrlStore
+import pl.wnioski.urlopowe.data.normalizeServerUrl
 import retrofit2.HttpException
 
 enum class LoginMode { LOGIN, REGISTER }
 
+/** Krok logowania: konfiguracja adresu serwera vs właściwy formularz logowania. */
+enum class LoginStep { SERVER, CREDENTIALS }
+
 data class LoginState(
+    val step: LoginStep = LoginStep.SERVER,
+    val serverUrl: String = "",
+    val connected: Boolean = false,
     val username: String = "",
     val password: String = "",
     val mode: LoginMode = LoginMode.LOGIN,
@@ -23,32 +31,80 @@ data class LoginState(
     val success: Boolean = false,
 )
 
-class LoginViewModel(private val auth: AuthRepository) : ViewModel() {
+class LoginViewModel(
+    private val auth: AuthRepository,
+    private val serverUrl: ServerUrlStore,
+) : ViewModel() {
 
     private val _state = MutableStateFlow(LoginState())
     val state: StateFlow<LoginState> = _state.asStateFlow()
 
-    init { loadHealth() }
+    init {
+        // Adres zapisany → od razu formularz logowania (sprawdź serwer w tle); brak → ekran serwera.
+        val saved = serverUrl.get()
+        if (saved != null) {
+            _state.update { it.copy(serverUrl = saved, step = LoginStep.CREDENTIALS) }
+            loadHealth()
+        }
+    }
 
+    /**
+     * Odpytuje serwer (health). Sukces → przechodzi do formularza logowania i odsłania rejestrację/Google.
+     * Porażka → wraca na ekran serwera z komunikatem (adres niezapisany lub nie można się połączyć).
+     */
     private fun loadHealth() {
         viewModelScope.launch {
             try {
                 val h = auth.health()
-                _state.update { it.copy(canRegister = h.rejestracja, hasGoogle = h.google) }
+                _state.update {
+                    it.copy(
+                        canRegister = h.rejestracja, hasGoogle = h.google, connected = true,
+                        loading = false, step = LoginStep.CREDENTIALS, error = null,
+                    )
+                }
             } catch (e: Exception) {
-                // brak health = zostaw domyślne (tylko logowanie hasłem)
+                _state.update {
+                    it.copy(
+                        loading = false, connected = false, step = LoginStep.SERVER,
+                        error = "Nie udało się połączyć z serwerem pod tym adresem.",
+                    )
+                }
             }
         }
     }
 
+    fun onServerUrl(v: String) = _state.update { it.copy(serverUrl = v, connected = false, error = null) }
     fun onUsername(v: String) = _state.update { it.copy(username = v, error = null) }
     fun onPassword(v: String) = _state.update { it.copy(password = v, error = null) }
+
+    /** Ręczne otwarcie ekranu adresu serwera („Zmień serwer"). */
+    fun showServerSetup() = _state.update { it.copy(step = LoginStep.SERVER, error = null) }
+
+    /** Normalizuje i zapisuje adres serwera. Zwraca `false` (i ustawia błąd) gdy adres niepoprawny. */
+    fun persistServerUrl(): Boolean {
+        val norm = normalizeServerUrl(_state.value.serverUrl)
+        if (norm == null) {
+            _state.update { it.copy(error = "Podaj poprawny adres serwera (np. https://twoj-serwer).") }
+            return false
+        }
+        serverUrl.set(norm)
+        _state.update { it.copy(serverUrl = norm) }
+        return true
+    }
+
+    /** „Połącz": zapisuje adres i odpytuje serwer; po sukcesie przechodzi do formularza logowania. */
+    fun connect() {
+        if (!persistServerUrl()) return
+        _state.update { it.copy(loading = true, error = null) }
+        loadHealth()
+    }
 
     fun toggleMode() = _state.update {
         it.copy(mode = if (it.mode == LoginMode.LOGIN) LoginMode.REGISTER else LoginMode.LOGIN, error = null)
     }
 
     fun submit() {
+        if (!persistServerUrl()) return
         val s = _state.value
         if (s.username.isBlank() || s.password.isBlank()) {
             _state.update { it.copy(error = "Podaj login i hasło.") }
@@ -61,7 +117,18 @@ class LoginViewModel(private val auth: AuthRepository) : ViewModel() {
                 else auth.login(s.username, s.password)
                 _state.update { it.copy(loading = false, success = true) }
             } catch (e: Exception) {
-                _state.update { it.copy(loading = false, error = messageFor(s.mode, e)) }
+                if (e is HttpException) {
+                    // Serwer odpowiedział (np. złe hasło / zajęty login) — zostań na formularzu.
+                    _state.update { it.copy(loading = false, error = messageFor(s.mode, e)) }
+                } else {
+                    // Brak połączenia — pokaż ekran adresu serwera.
+                    _state.update {
+                        it.copy(
+                            loading = false, connected = false, step = LoginStep.SERVER,
+                            error = "Nie udało się połączyć z serwerem pod tym adresem.",
+                        )
+                    }
+                }
             }
         }
     }

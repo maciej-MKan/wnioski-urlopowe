@@ -63,7 +63,7 @@ fun CalendarScreen(
     onOpenBalance: (Int) -> Unit,
     onCreate: (String?, String?) -> Unit,
     onManual: (String?, String?) -> Unit,
-    onProfile: () -> Unit,
+    onSettings: () -> Unit,
 ) {
     val vm: CalendarViewModel = viewModel(
         factory = viewModelFactory { initializer { CalendarViewModel(container.calendar) } }
@@ -99,7 +99,7 @@ fun CalendarScreen(
                     DropdownMenuItem(text = { Text("Saldo") }, onClick = {
                         menu = false; onOpenBalance(state.ym.year)
                     })
-                    DropdownMenuItem(text = { Text("Profil") }, onClick = { menu = false; onProfile() })
+                    DropdownMenuItem(text = { Text("Ustawienia") }, onClick = { menu = false; onSettings() })
                     DropdownMenuItem(text = { Text("Wyloguj") }, onClick = { menu = false; onLogout() })
                 }
             }

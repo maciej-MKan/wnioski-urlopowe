@@ -26,7 +26,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -34,64 +33,80 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import pl.wnioski.urlopowe.data.AppContainer
-import pl.wnioski.urlopowe.data.BalanceItemDto
 import pl.wnioski.urlopowe.data.RegistryTypeDto
 
-/** Formatuje liczbę bez zbędnego „.0" dla całkowitych. */
-private fun fmt(d: Double): String =
-    if (d % 1.0 == 0.0) d.toInt().toString() else d.toString().trimEnd('0').trimEnd('.')
-
+/**
+ * Ustawienia (§20.6) — cała konfiguracja w jednym miejscu: profil (dane domyślne wniosków)
+ * oraz przysługujące limity na dany rok. Podgląd wykorzystania jest osobno, w Saldzie.
+ */
 @Composable
-fun BalanceScreen(container: AppContainer, initialYear: Int, onBack: () -> Unit) {
-    val vm: BalanceViewModel = viewModel(
-        factory = viewModelFactory { initializer { BalanceViewModel(container.settings, initialYear) } }
+fun UstawieniaScreen(container: AppContainer, onBack: () -> Unit) {
+    val profileVm: ProfileViewModel = viewModel(
+        factory = viewModelFactory { initializer { ProfileViewModel(container.applications) } }
     )
-    val state by vm.state.collectAsStateWithLifecycle()
-    // Po powrocie na ekran (np. po dodaniu urlopu) przeładuj saldo — VM jest w zakresie Activity,
-    // więc `init { load() }` nie odpala się ponownie (§20.3).
-    LaunchedEffect(Unit) { vm.load() }
+    val settingsVm: BalanceViewModel = viewModel(
+        factory = viewModelFactory { initializer { BalanceViewModel(container.settings) } }
+    )
+    val profile by profileVm.state.collectAsStateWithLifecycle()
+    val settings by settingsVm.state.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) { settingsVm.load() }
 
     Column(modifier = Modifier.fillMaxSize().safeDrawingPadding().padding(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             TextButton(onClick = onBack) { Text("‹ Kalendarz") }
-            Text(
-                "Saldo i ustawienia",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.weight(1f).padding(start = 8.dp),
-            )
-            TextButton(onClick = vm::prevYear) { Text("‹") }
-            Text(state.year.toString(), fontWeight = FontWeight.Bold)
-            TextButton(onClick = vm::nextYear) { Text("›") }
+            Text("Ustawienia", style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 8.dp))
         }
 
-        if (state.loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp))
-        state.error?.let {
-            Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(vertical = 4.dp))
+        if (profile.loading || settings.loading) {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp))
         }
 
         Column(
             modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text("Saldo", fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp))
-            if (!state.loading && state.items.isEmpty()) {
-                Text("Brak danych salda dla roku ${state.year}.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            state.items.forEach { item -> BalanceCard(item) }
-
-            if (!state.loading && state.types.isNotEmpty()) {
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                SettingsSection(state, vm)
-            }
+            ProfileSection(profileVm, profile)
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            SettingsSection(settingsVm, settings)
         }
     }
 }
 
 @Composable
-private fun SettingsSection(state: BalanceState, vm: BalanceViewModel) {
-    Text("Ustawienia roku ${state.year}", fontWeight = FontWeight.Bold)
+private fun ProfileSection(vm: ProfileViewModel, state: ProfileState) {
+    Text("Mój profil", fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
+    Text(
+        "Domyślne dane wstawiane do wniosków.",
+        fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    state.error?.let {
+        Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(vertical = 4.dp))
+    }
+    if (!state.loading) {
+        state.fields.forEach { f ->
+            FormField(f, state.values[f.name] ?: "", f.hint) { v -> vm.setValue(f.name, v) }
+        }
+        Button(onClick = vm::save, enabled = !state.saving, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+            Text(if (state.saving) "Zapisywanie…" else "Zapisz profil")
+        }
+        state.savedMessage?.let {
+            Text(it, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 4.dp))
+        }
+    }
+}
+
+@Composable
+private fun SettingsSection(vm: BalanceViewModel, state: BalanceState) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        Text("Przysługujące limity", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+        TextButton(onClick = vm::prevYear) { Text("‹") }
+        Text(state.year.toString(), fontWeight = FontWeight.Bold)
+        TextButton(onClick = vm::nextYear) { Text("›") }
+    }
+    state.error?.let {
+        Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(vertical = 4.dp))
+    }
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -112,7 +127,7 @@ private fun SettingsSection(state: BalanceState, vm: BalanceViewModel) {
     }
 
     Button(onClick = vm::save, enabled = !state.saving, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
-        Text(if (state.saving) "Zapisywanie…" else "Zapisz ustawienia")
+        Text(if (state.saving) "Zapisywanie…" else "Zapisz limity")
     }
     state.savedMessage?.let {
         Text(it, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 4.dp))
@@ -160,33 +175,5 @@ private fun CheckboxTypeCard(t: RegistryTypeDto, state: BalanceState, vm: Balanc
             }
             Switch(checked = state.active[t.id] ?: false, onCheckedChange = { vm.setActive(t.id, it) })
         }
-    }
-}
-
-@Composable
-private fun BalanceCard(item: BalanceItemDto) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
-            Text(item.etykieta, fontWeight = FontWeight.Medium)
-            Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-                Metric("Limit", item.limit, item.jednostka, Modifier.weight(1f))
-                Metric("Wykorzystano", item.wykorzystano, item.jednostka, Modifier.weight(1f))
-                Metric("Zaplanowano", item.zaplanowano, item.jednostka, Modifier.weight(1f))
-                Metric("Pozostało", item.pozostalo, item.jednostka, Modifier.weight(1f), highlight = true)
-            }
-        }
-    }
-}
-
-@Composable
-private fun Metric(label: String, value: Double, unit: String, modifier: Modifier, highlight: Boolean = false) {
-    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(label, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
-        Text(
-            fmt(value),
-            fontWeight = if (highlight) FontWeight.Bold else FontWeight.Normal,
-            color = if (highlight) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-        )
-        Text(unit, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
