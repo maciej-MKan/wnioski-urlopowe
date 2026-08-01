@@ -97,7 +97,7 @@ class LeaveService:
         leave: the trailing `k` working days become a separate `wolne_za_swieta` record
         (with its own PDF), the rest stays annual leave. Different legal basis → two documents.
         """
-        data = self._registry.validate(payload)
+        data = self._registry.validate(payload, require_fields=True)  # miejscowość/pracodawca/daty
         self._require_sane_period(data)  # data_do ≥ data_od, liczba dni ≤ zakres
         self._require_paternity_rules(data)  # §20.2: urlop ojcowski — min./maks. część, suma
         period = DateRange.from_strings(data.get("data_od"), data.get("data_do"))

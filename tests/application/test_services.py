@@ -6,11 +6,15 @@ import pytest
 from app.domain.errors import UnknownLeaveType
 from app.domain.values import Status
 
+# Pola wymagane przy generowaniu wniosku (miejscowość, pracodawca) — patrz FormField.required.
+WYMAG = {"miejscowosc": "Warszawa", "pracodawca": "ACME Sp. z o.o."}
+
 ANNUAL = {
     "typ": "wypoczynkowy",
     "imie_nazwisko": "Jan Kowalski",
     "data_od": "2026-08-04",
     "data_do": "2026-08-08",
+    **WYMAG,
 }
 
 
@@ -223,7 +227,7 @@ def test_create_applications_single_without_split(service):
 def test_create_applications_splits_off_weekend_days(service):
     # August 2026 has one Saturday holiday (15 Aug) → capacity 1; carve off the trailing day.
     payload = {"typ": "wypoczynkowy", "imie_nazwisko": "Jan Kowalski",
-               "data_od": "2026-08-10", "data_do": "2026-08-21"}
+               "data_od": "2026-08-10", "data_do": "2026-08-21", **WYMAG}
     records = service.create_applications(payload, weekend_days=1)
     assert len(records) == 2
     by_type = {r.leave_type: r for r in records}
@@ -238,17 +242,17 @@ def test_create_applications_splits_off_weekend_days(service):
 def test_create_applications_clamps_to_month_capacity(service):
     # §16.1: request 9 days off, but August has capacity 1 → only one comp day is carved off.
     recs = service.create_applications(
-        {"typ": "wypoczynkowy", "data_od": "2026-08-20", "data_do": "2026-08-21"}, weekend_days=9)
+        {"typ": "wypoczynkowy", "data_od": "2026-08-20", "data_do": "2026-08-21", **WYMAG}, weekend_days=9)
     assert {r.leave_type for r in recs} == {"wypoczynkowy", "wolne_za_swieta"}
     ojc = service.create_applications(
-        {"typ": "ojcowski", "data_od": "2026-06-01", "data_do": "2026-06-14"}, weekend_days=3)
+        {"typ": "ojcowski", "data_od": "2026-06-01", "data_do": "2026-06-14", **WYMAG}, weekend_days=3)
     assert [r.leave_type for r in ojc] == ["ojcowski"]
 
 
 def test_split_rejected_when_month_has_no_saturday_holiday(service):
     # §16.1: July 2026 has no Saturday holiday → no split even if days are requested.
     recs = service.create_applications(
-        {"typ": "wypoczynkowy", "data_od": "2026-07-06", "data_do": "2026-07-17"}, weekend_days=2)
+        {"typ": "wypoczynkowy", "data_od": "2026-07-06", "data_do": "2026-07-17", **WYMAG}, weekend_days=2)
     assert [r.leave_type for r in recs] == ["wypoczynkowy"]
 
 
@@ -261,7 +265,7 @@ def test_add_manual_weekend_off_rejected_without_capacity(service):
 def test_split_weekend_days_count_in_balance(service):
     # §16.1: the comp day settles in its own month. Leave in May 2025 (3 May is a Saturday
     # holiday) → the May line counts it.
-    payload = {"typ": "wypoczynkowy", "data_od": "2025-05-05", "data_do": "2025-05-16"}
+    payload = {"typ": "wypoczynkowy", "data_od": "2025-05-05", "data_do": "2025-05-16", **WYMAG}
     service.create_applications(payload, weekend_days=1)
     may = next(i for i in service.balance(2025) if i.short_term and i.month == 5)
     assert may.planned == 1  # comp record is pending → planned

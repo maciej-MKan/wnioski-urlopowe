@@ -10,6 +10,8 @@ ANNUAL = {
     "imie_nazwisko": "Jan Kowalski",
     "data_od": "2026-08-04",
     "data_do": "2026-08-08",
+    "miejscowosc": "Warszawa",
+    "pracodawca": "ACME Sp. z o.o.",  # wymagane przy /api/wnioski
 }
 
 
@@ -96,6 +98,20 @@ def test_generate_unknown_type_400(client):
     assert client.post("/api/generuj", json={"typ": "nieistnieje"}).status_code == 400
 
 
+def test_wnioski_requires_fields(client):
+    # bez miejscowości/pracodawcy → 400 z listą brakujących pól (parytet z walidacją w web)
+    r = client.post("/api/wnioski", json={"typ": "wypoczynkowy", "data_od": "2026-08-04", "data_do": "2026-08-08"})
+    assert r.status_code == 400
+    detail = r.json()["detail"]
+    assert "Miejscowość" in detail and "Pracodawca" in detail
+
+
+def test_wnioski_requires_dates(client):
+    r = client.post("/api/wnioski", json={"typ": "wypoczynkowy", "miejscowosc": "Warszawa", "pracodawca": "ACME"})
+    assert r.status_code == 400
+    assert "Data od" in r.json()["detail"]
+
+
 def test_wnioski_single(client):
     r = client.post("/api/wnioski", json=ANNUAL)
     assert r.status_code == 200
@@ -106,7 +122,8 @@ def test_wnioski_single(client):
 
 
 def test_wnioski_split_creates_two(client):
-    payload = {"typ": "wypoczynkowy", "data_od": "2026-08-10", "data_do": "2026-08-21", "dni_za_swieto": 1}
+    payload = {"typ": "wypoczynkowy", "data_od": "2026-08-10", "data_do": "2026-08-21", "dni_za_swieto": 1,
+               "miejscowosc": "Warszawa", "pracodawca": "ACME Sp. z o.o."}
     wnioski = client.post("/api/wnioski", json=payload).json()["wnioski"]
     types = {w["typ"] for w in wnioski}
     assert types == {"wypoczynkowy", "wolne_za_swieta"}

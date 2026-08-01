@@ -51,3 +51,25 @@ def test_validate_corrects_select_outside_options():
 def test_validate_trims_whitespace():
     data = REGISTRY.validate({"typ": "wypoczynkowy", "imie_nazwisko": "  Jan Kowalski  "})
     assert data["imie_nazwisko"] == "Jan Kowalski"
+
+
+def test_validate_require_fields_raises_on_missing():
+    with pytest.raises(ValueError) as exc:
+        REGISTRY.validate({"typ": "wypoczynkowy", "data_od": "2026-08-04", "data_do": "2026-08-08"},
+                          require_fields=True)
+    msg = str(exc.value)
+    assert "Miejscowość" in msg and "Pracodawca" in msg
+
+
+def test_validate_require_fields_ok_when_complete():
+    data = REGISTRY.validate(
+        {"typ": "wypoczynkowy", "data_od": "2026-08-04", "data_do": "2026-08-08",
+         "miejscowosc": "Warszawa", "pracodawca": "ACME"},
+        require_fields=True)
+    assert data["miejscowosc"] == "Warszawa"
+
+
+def test_validate_without_require_fields_allows_empty():
+    # Domyślnie (np. ręczne dodawanie) puste pola wymagane są dozwolone.
+    data = REGISTRY.validate({"typ": "wypoczynkowy", "data_od": "2026-08-04", "data_do": "2026-08-08"})
+    assert data["miejscowosc"] == ""

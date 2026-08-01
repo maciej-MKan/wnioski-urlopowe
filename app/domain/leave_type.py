@@ -32,6 +32,7 @@ class FormField:
     default: str = ""
     visible_when: Optional[tuple[str, str]] = None  # (field_name, value)
     auto_from_range: bool = False  # hint the day count from the data_od–data_do range
+    required: bool = False  # obowiązkowe przy generowaniu wniosku (validate(require_fields=True))
 
 
 @dataclass(frozen=True)
@@ -59,7 +60,7 @@ class LeaveType:
 # --- Fields common to every application -----------------------------------------------
 
 COMMON_FIELDS: tuple[FormField, ...] = (
-    FormField("miejscowosc", "Miejscowość", placeholder="np. Warszawa"),
+    FormField("miejscowosc", "Miejscowość", placeholder="np. Warszawa", required=True),
     FormField("data", "Data sporządzenia", field_type="date"),
     FormField("imie_nazwisko", "Imię i nazwisko pracownika", placeholder="Jan Kowalski", width="full"),
     FormField("stanowisko", "Stanowisko / dział (opcjonalnie)", placeholder="Specjalista, Dział IT", width="full"),
@@ -69,6 +70,7 @@ COMMON_FIELDS: tuple[FormField, ...] = (
         field_type="textarea",
         placeholder="Nazwa firmy Sp. z o.o.\nul. Przykładowa 1\n00-001 Warszawa",
         width="full",
+        required=True,
     ),
     FormField(
         "dzial_kadr",
@@ -94,8 +96,8 @@ def _default_types() -> tuple[LeaveType, ...]:
             default_limit_text="20 lub 26 dni",
             default_limit_days=26,
             fields=(
-                FormField("data_od", "Data od", field_type="date"),
-                FormField("data_do", "Data do", field_type="date"),
+                FormField("data_od", "Data od", field_type="date", required=True),
+                FormField("data_do", "Data do", field_type="date", required=True),
                 FormField("liczba_dni", "Liczba dni", placeholder="auto z zakresu dat", auto_from_range=True),
                 FormField(
                     "rok_rozliczenia",
@@ -132,8 +134,8 @@ def _default_types() -> tuple[LeaveType, ...]:
                     placeholder="np. 2 tygodnie",
                     hint="Do 2 tygodni, można w 2 częściach (min. 1 tydzień każda).",
                 ),
-                FormField("data_od", "Data od", field_type="date"),
-                FormField("data_do", "Data do", field_type="date"),
+                FormField("data_od", "Data od", field_type="date", required=True),
+                FormField("data_do", "Data do", field_type="date", required=True),
             ),
         ),
         LeaveType(
@@ -159,8 +161,8 @@ def _default_types() -> tuple[LeaveType, ...]:
                     default="dni",
                 ),
                 FormField("wymiar", "Wymiar (liczba dni lub godzin)", placeholder="np. 2", hint="Rocznie: 2 dni albo 16 godzin."),
-                FormField("data_od", "Data od", field_type="date"),
-                FormField("data_do", "Data do", field_type="date"),
+                FormField("data_od", "Data od", field_type="date", required=True),
+                FormField("data_do", "Data do", field_type="date", required=True),
                 FormField("godzina_od", "Godzina od", field_type="time", visible_when=("forma", "godziny")),
                 FormField("godzina_do", "Godzina do", field_type="time", visible_when=("forma", "godziny")),
             ),
@@ -178,8 +180,8 @@ def _default_types() -> tuple[LeaveType, ...]:
             color="#7a4fbf",
             generatable=False,
             fields=(
-                FormField("data_od", "Data od", field_type="date"),
-                FormField("data_do", "Data do", field_type="date"),
+                FormField("data_od", "Data od", field_type="date", required=True),
+                FormField("data_do", "Data do", field_type="date", required=True),
             ),
         ),
     )
@@ -209,16 +211,19 @@ class LeaveTypeRegistry:
             raise UnknownLeaveType(type_id)
         return leave_type
 
-    def validate(self, payload: dict) -> dict:
+    def validate(self, payload: dict, require_fields: bool = False) -> dict:
         """Normalized application data driven by the descriptor.
 
         - rejects an unknown `typ` (`UnknownLeaveType`),
         - copies only fields from the descriptor (whitelist),
         - missing fields → default value (usually an empty string),
         - a `select` value outside the options → the default value.
+        - `require_fields=True` (generowanie wniosku) → puste pole oznaczone `required`
+          kończy się `ValueError` z listą brakujących etykiet (parytet z walidacją w web).
         """
         leave_type = self.required(payload.get("typ"))
         data: dict = {"typ": leave_type.id}
+        missing: list[str] = []
         for f in self.common + leave_type.fields:
             value = payload.get(f.name, f.default)
             value = "" if value is None else str(value).strip()
@@ -226,6 +231,10 @@ class LeaveTypeRegistry:
                 if value not in {v for v, _ in f.options}:
                     value = f.default
             data[f.name] = value
+            if require_fields and f.required and not value:
+                missing.append(f.label)
+        if missing:
+            raise ValueError("Uzupełnij wymagane pola: " + ", ".join(missing) + ".")
         return data
 
 
