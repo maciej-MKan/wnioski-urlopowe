@@ -123,6 +123,7 @@ data class FieldDto(
     val szerokosc: String = "full",
     val domyslna: String = "",
     @SerialName("auto_z_zakresu") val autoZZakresu: Boolean = false,
+    val wymagane: Boolean = false,
     val opcje: List<FieldOptionDto> = emptyList(),
     @SerialName("widoczne_gdy") val widoczneGdy: VisibleWhenDto? = null,
 )

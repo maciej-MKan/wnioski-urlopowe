@@ -20,15 +20,16 @@ class CreateViewModelTest {
 
     private val registry = RegistryDto(
         wspolne = listOf(
-            FieldDto(name = "miejscowosc", label = "Miejscowość"),
+            FieldDto(name = "miejscowosc", label = "Miejscowość", wymagane = true),
+            FieldDto(name = "pracodawca", label = "Pracodawca", typPola = "textarea", wymagane = true),
             FieldDto(name = "data", label = "Data sporządzenia", typPola = "date"),
         ),
         typy = listOf(
             RegistryTypeDto(
                 id = "wypoczynkowy", nazwa = "Urlop wypoczynkowy", aktywny = true, generowalny = true,
                 pola = listOf(
-                    FieldDto(name = "data_od", label = "Data od", typPola = "date"),
-                    FieldDto(name = "data_do", label = "Data do", typPola = "date"),
+                    FieldDto(name = "data_od", label = "Data od", typPola = "date", wymagane = true),
+                    FieldDto(name = "data_do", label = "Data do", typPola = "date", wymagane = true),
                 ),
             ),
             RegistryTypeDto(  // niegenerowalny → odfiltrowany
@@ -70,10 +71,21 @@ class CreateViewModelTest {
     }
 
     @Test
+    fun submitBlockedWhenRequiredMissing() {
+        // brak miejscowości/pracodawcy → walidacja klienta blokuje (§22.2), nic nie wysyła
+        val (v, api) = vm(from = "2026-07-13", to = "2026-07-17")
+        v.submit()
+        assertTrue(api.created.isEmpty())
+        assertFalse(v.state.value.done)
+        assertTrue(v.state.value.error!!.contains("Miejscowość") && v.state.value.error!!.contains("Pracodawca"))
+    }
+
+    @Test
     fun submitSendsPayloadWithoutWeekendWhenNoBalance() {
         // FakeApi.balance puste → brak dialogu §15, tworzy od razu
         val (v, api) = vm(from = "2026-07-13", to = "2026-07-17")
         v.setCommon("miejscowosc", "Warszawa")
+        v.setCommon("pracodawca", "ACME")
         v.submit()
         assertEquals(1, api.created.size)
         val payload = api.created.first()

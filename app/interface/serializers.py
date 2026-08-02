@@ -23,6 +23,7 @@ def _field_to_json(f: FormField) -> dict:
         "szerokosc": f.width,
         "domyslna": f.default,
         "auto_z_zakresu": f.auto_from_range,
+        "wymagane": f.required,
         "opcje": [{"value": v, "label": e} for v, e in f.options],
         "widoczne_gdy": (
             {"pole": f.visible_when[0], "wartosc": f.visible_when[1]} if f.visible_when else None

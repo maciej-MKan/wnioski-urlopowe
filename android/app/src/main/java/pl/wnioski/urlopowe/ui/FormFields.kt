@@ -22,6 +22,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
@@ -31,6 +35,19 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+
+/** Etykieta pola z czerwoną gwiazdką dla pól wymaganych (§22.2). */
+@Composable
+private fun FieldLabel(field: FieldDto) {
+    if (field.wymagane) {
+        Text(buildAnnotatedString {
+            append(field.label)
+            withStyle(SpanStyle(color = Color(0xFFD0453B))) { append(" *") }
+        })
+    } else {
+        Text(field.label)
+    }
+}
 
 /** Renderuje pojedyncze pole rejestru zależnie od `typ_pola`. */
 @Composable
@@ -58,7 +75,7 @@ private fun LabeledTextField(
     OutlinedTextField(
         value = value,
         onValueChange = onChange,
-        label = { Text(field.label) },
+        label = { FieldLabel(field) },
         placeholder = { if (field.placeholder.isNotEmpty()) Text(field.placeholder) },
         supportingText = { if (hint.isNotEmpty()) Text(hint) },
         singleLine = singleLine,
@@ -77,7 +94,7 @@ private fun SelectField(field: FieldDto, value: String, onChange: (String) -> Un
             value = current,
             onValueChange = {},
             readOnly = true,
-            label = { Text(field.label) },
+            label = { FieldLabel(field) },
             supportingText = { if (hint.isNotEmpty()) Text(hint) },
             modifier = Modifier.fillMaxWidth(),
         )
@@ -102,7 +119,7 @@ private fun DateField(field: FieldDto, value: String, onChange: (String) -> Unit
             value = value,
             onValueChange = {},
             readOnly = true,
-            label = { Text(field.label) },
+            label = { FieldLabel(field) },
             placeholder = { Text("RRRR-MM-DD") },
             supportingText = { if (hint.isNotEmpty()) Text(hint) },
             modifier = Modifier.fillMaxWidth(),
@@ -137,7 +154,7 @@ private fun TimeField(field: FieldDto, value: String, onChange: (String) -> Unit
             value = value,
             onValueChange = {},
             readOnly = true,
-            label = { Text(field.label) },
+            label = { FieldLabel(field) },
             placeholder = { Text("GG:MM") },
             supportingText = { if (hint.isNotEmpty()) Text(hint) },
             modifier = Modifier.fillMaxWidth(),

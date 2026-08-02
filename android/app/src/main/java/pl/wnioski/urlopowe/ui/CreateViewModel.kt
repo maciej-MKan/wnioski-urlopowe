@@ -114,7 +114,13 @@ class CreateViewModel(
     }
 
     fun submit() {
+        val missing = missingRequired()
+        if (missing.isNotEmpty()) {
+            _state.update { it.copy(error = "Uzupełnij wymagane pola: " + missing.joinToString(", ") + ".") }
+            return
+        }
         viewModelScope.launch {
+            _state.update { it.copy(error = null) }
             val prompt = computeWeekendPrompt()
             if (prompt != null) {
                 _state.update { it.copy(weekendPrompt = prompt) }
@@ -122,6 +128,22 @@ class CreateViewModel(
                 doCreate(0)
             }
         }
+    }
+
+    /** Brakujące pola wymagane (wspólne + aktywnego typu) → lista etykiet (§22.2). */
+    private fun missingRequired(): List<String> {
+        val reg = registry ?: return emptyList()
+        val active = _state.value.activeType
+        val typeFields = reg.typy.firstOrNull { it.id == active }?.pola ?: emptyList()
+        val typeValues = byType[active] ?: emptyMap()
+        val missing = mutableListOf<String>()
+        reg.wspolne.filter { it.wymagane }.forEach { f ->
+            if ((commonValues[f.name] ?: "").isBlank()) missing += f.label
+        }
+        typeFields.filter { it.wymagane }.forEach { f ->
+            if ((typeValues[f.name] ?: "").isBlank()) missing += f.label
+        }
+        return missing
     }
 
     fun cancelWeekend() = _state.update { it.copy(weekendPrompt = null) }
