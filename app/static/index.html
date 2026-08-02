@@ -196,9 +196,20 @@ function budujUI(){
 }
 
 function wybierzTyp(id){
+  // §20.7: zakres dat podąża za użytkownikiem — przenieś data_od/data_do z bieżącego typu do nowego.
+  const stary = aktywnyTyp;
+  const od = stary && $("f_" + stary + "_data_od") ? $("f_" + stary + "_data_od").value : "";
+  const doo = stary && $("f_" + stary + "_data_do") ? $("f_" + stary + "_data_do").value : "";
+
   aktywnyTyp = id;
   document.querySelectorAll(".tab").forEach(x => x.classList.toggle("active", x.dataset.typ === id));
   document.querySelectorAll(".sekcja").forEach(s => s.classList.toggle("hidden", s.dataset.sekcja !== id));
+
+  const nOd = $("f_" + id + "_data_od"), nDo = $("f_" + id + "_data_do");
+  if(nOd && od) nOd.value = od;
+  if(nDo && doo) nDo.value = doo;
+  stosujWidocznosc(id); przeliczDni(id);   // odśwież widoczność warunkową i podpowiedź dni
+
   resetPost();  // po zmianie rodzaju urlopu — świeża zakładka (bez „dodano"/Podglądu)
 }
 
