@@ -79,6 +79,22 @@ class CalendarViewModelTest {
     }
 
     @Test
+    fun reclickStartDeselects() {
+        val vm = vmWith()
+        val cells = vm.state.value.cells.filterNotNull()
+        val d5 = cells.first { it.day == 5 }
+        vm.select(d5)                                  // pojedynczy dzień zaznaczony
+        assertEquals(d5.iso, vm.state.value.selStart)
+        vm.select(d5)                                  // ponowne kliknięcie startu → odznacz (§22.7)
+        assertEquals(null, vm.state.value.selStart)
+        assertEquals(null, vm.state.value.selEnd)
+        assertEquals(null, vm.state.value.selected)
+        // Po odznaczeniu można zaznaczyć od nowa.
+        vm.select(d5)
+        assertEquals(d5.iso, vm.state.value.selStart)
+    }
+
+    @Test
     fun rangeSelectionSortsReversedTaps() {
         val vm = vmWith()
         val cells = vm.state.value.cells.filterNotNull()

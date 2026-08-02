@@ -72,20 +72,28 @@ class CalendarViewModel(private val repo: CalendarRepository) : ViewModel() {
 
     /**
      * Zaznaczanie okresu przez kliknięcia (§17): pierwsze tapnięcie ustawia początek (jeden dzień),
-     * drugie domyka zakres, trzecie zaczyna od nowa.
+     * drugie domyka zakres. Ponowne kliknięcie w zaznaczony dzień startowy odznacza wybór (§22.7).
      */
     fun select(cell: DayCell?) {
         val d = cell?.iso ?: return clearSelection()
         val a = anchor
-        if (a == null) {
-            anchor = d
-            _state.update { it.copy(selected = cell, selStart = d, selEnd = d) }
-        } else {
-            val start = if (a <= d) a else d
-            val end = if (a <= d) d else a
-            anchor = null
-            val startCell = _state.value.cells.filterNotNull().firstOrNull { it.iso == start } ?: cell
-            _state.update { it.copy(selected = startCell, selStart = start, selEnd = end) }
+        val s = _state.value
+        when {
+            // Brak trwającego zaznaczania, ale klik w już zaznaczony pojedynczy dzień → odznacz (§22.7).
+            a == null && s.selStart == d && s.selEnd == d -> clearSelection()
+            a == null -> {
+                anchor = d
+                _state.update { it.copy(selected = cell, selStart = d, selEnd = d) }
+            }
+            // Ponowne kliknięcie dnia startowego (zaznaczanie w toku) → odznacz (§22.7).
+            d == a -> clearSelection()
+            else -> {
+                val start = if (a <= d) a else d
+                val end = if (a <= d) d else a
+                anchor = null
+                val startCell = _state.value.cells.filterNotNull().firstOrNull { it.iso == start } ?: cell
+                _state.update { it.copy(selected = startCell, selStart = start, selEnd = end) }
+            }
         }
     }
 
