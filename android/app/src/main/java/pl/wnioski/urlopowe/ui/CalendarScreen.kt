@@ -19,11 +19,13 @@ import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -56,6 +58,7 @@ private fun parseColor(hex: String?): Color? = try {
     if (hex.isNullOrBlank()) null else Color(android.graphics.Color.parseColor(hex))
 } catch (e: Exception) { null }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CalendarScreen(
     container: AppContainer,
@@ -74,8 +77,37 @@ fun CalendarScreen(
     var menu by remember { mutableStateOf(false) }
     val downloadPdf = rememberPdfDownloader { id -> container.calendar.pdfBytes(id) }
 
-    Column(modifier = Modifier.fillMaxSize().safeDrawingPadding().padding(12.dp)) {
-        // Pasek: nawigacja miesiąca + menu
+    Column(modifier = Modifier.fillMaxSize().safeDrawingPadding()) {
+        // §22.3: nagłówek aplikacji z menu (nawigacja + wyloguj).
+        TopAppBar(
+            title = { Text("Wnioski urlopowe", fontWeight = FontWeight.Bold) },
+            actions = {
+                Box {
+                    TextButton(onClick = { menu = true }) { Text("⋮") }
+                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                        DropdownMenuItem(text = { Text("Nowy wniosek") }, onClick = {
+                            menu = false
+                            onCreate(state.selStart, state.selEnd)
+                        })
+                        DropdownMenuItem(text = { Text("Dodaj ręcznie") }, onClick = {
+                            menu = false
+                            onManual(state.selStart, state.selEnd)
+                        })
+                        DropdownMenuItem(text = { Text("Saldo") }, onClick = {
+                            menu = false; onOpenBalance(state.ym.year)
+                        })
+                        DropdownMenuItem(text = { Text("Ustawienia") }, onClick = { menu = false; onSettings() })
+                        // W trybie bez logowania „Wyloguj" nie ma sensu (serwer auto-uwierzytelnia jedyne konto).
+                        if (!state.noLogin) {
+                            DropdownMenuItem(text = { Text("Wyloguj") }, onClick = { menu = false; onLogout() })
+                        }
+                    }
+                }
+            },
+        )
+
+      Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
+        // Pasek: nawigacja miesiąca
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             TextButton(onClick = vm::prevMonth) { Text("‹") }
             Text(
@@ -85,27 +117,6 @@ fun CalendarScreen(
                 modifier = Modifier.weight(1f),
             )
             TextButton(onClick = vm::nextMonth) { Text("›") }
-            Box {
-                TextButton(onClick = { menu = true }) { Text("⋮") }
-                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                    DropdownMenuItem(text = { Text("Nowy wniosek") }, onClick = {
-                        menu = false
-                        onCreate(state.selStart, state.selEnd)
-                    })
-                    DropdownMenuItem(text = { Text("Dodaj ręcznie") }, onClick = {
-                        menu = false
-                        onManual(state.selStart, state.selEnd)
-                    })
-                    DropdownMenuItem(text = { Text("Saldo") }, onClick = {
-                        menu = false; onOpenBalance(state.ym.year)
-                    })
-                    DropdownMenuItem(text = { Text("Ustawienia") }, onClick = { menu = false; onSettings() })
-                    // W trybie bez logowania „Wyloguj" nie ma sensu (serwer auto-uwierzytelnia jedyne konto).
-                    if (!state.noLogin) {
-                        DropdownMenuItem(text = { Text("Wyloguj") }, onClick = { menu = false; onLogout() })
-                    }
-                }
-            }
         }
 
         if (state.loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp))
@@ -142,6 +153,7 @@ fun CalendarScreen(
                 onManual = onManual,
             )
         }
+      }
     }
 }
 
