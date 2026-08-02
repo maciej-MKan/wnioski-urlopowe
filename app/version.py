@@ -7,5 +7,5 @@ odrzuca serwer, którego `api_version` wypada poza obsługiwanym przez niego zak
 """
 from __future__ import annotations
 
-APP_VERSION = "0.3"
+APP_VERSION = "0.4"
 API_VERSION = 1
