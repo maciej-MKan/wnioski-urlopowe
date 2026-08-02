@@ -21,6 +21,12 @@ data class DayCell(
     val weekend: Boolean,
 )
 
+/** Tryb widoku kalendarza (§22.1): pojedynczy miesiąc vs siatka 12 mini-miesięcy roku. */
+enum class ViewMode { MONTH, YEAR }
+
+/** Mini-miesiąc do widoku rocznego. */
+data class MonthMini(val ym: YearMonth, val cells: List<DayCell?>)
+
 data class CalendarState(
     val ym: YearMonth,
     val loading: Boolean = false,
@@ -31,6 +37,8 @@ data class CalendarState(
     val selStart: String? = null,              // ISO początku zaznaczonego okresu
     val selEnd: String? = null,                // ISO końca (== selStart dla jednego dnia)
     val noLogin: Boolean = false,              // serwer w trybie bez logowania → ukryj „Wyloguj"
+    val viewMode: ViewMode = ViewMode.MONTH,   // §22.1: miesiąc vs rok
+    val yearMonths: List<MonthMini> = emptyList(),  // 12 mini-miesięcy (widok roczny)
 )
 
 class CalendarViewModel(private val repo: CalendarRepository) : ViewModel() {
@@ -63,6 +71,35 @@ class CalendarViewModel(private val repo: CalendarRepository) : ViewModel() {
         clearSelection()
         _state.update { it.copy(ym = it.ym.plusMonths(1)) }
         refresh()
+    }
+
+    // --- Widok roczny (§22.1) ---
+
+    /** Przełącza między widokiem miesiąca a rokiem. */
+    fun toggleView() {
+        val next = if (_state.value.viewMode == ViewMode.YEAR) ViewMode.MONTH else ViewMode.YEAR
+        _state.update { it.copy(viewMode = next, yearMonths = if (next == ViewMode.YEAR) buildYearMonths() else emptyList()) }
+    }
+
+    fun prevYear() { changeYear(-1) }
+    fun nextYear() { changeYear(1) }
+
+    private fun changeYear(delta: Int) {
+        clearSelection()
+        _state.update { it.copy(ym = it.ym.plusYears(delta.toLong())) }
+        load()   // przeładuj rekordy/święta nowego roku; load() odbuduje też mini-miesiące (tryb rok)
+    }
+
+    /** Otwiera wskazany miesiąc w widoku miesięcznym (klik mini-miesiąca). */
+    fun openMonth(ym: YearMonth) {
+        clearSelection()
+        _state.update { it.copy(ym = ym, viewMode = ViewMode.MONTH) }
+        refresh()
+    }
+
+    private fun buildYearMonths(): List<MonthMini> {
+        val year = _state.value.ym.year
+        return (1..12).map { m -> val ym = YearMonth.of(year, m); MonthMini(ym, monthCells(ym, records, holidays)) }
     }
 
     private fun clearSelection() {
@@ -130,7 +167,12 @@ class CalendarViewModel(private val repo: CalendarRepository) : ViewModel() {
                 val cells = buildCells(ym)
                 val selIso = _state.value.selStart
                 val newSel = selIso?.let { iso -> cells.filterNotNull().firstOrNull { it.iso == iso } }
-                _state.update { it.copy(loading = false, types = types, cells = cells, selected = newSel) }
+                _state.update {
+                    it.copy(
+                        loading = false, types = types, cells = cells, selected = newSel,
+                        yearMonths = if (it.viewMode == ViewMode.YEAR) buildYearMonths() else it.yearMonths,
+                    )
+                }
             } catch (e: Exception) {
                 _state.update { it.copy(loading = false, error = "Nie udało się wczytać danych.") }
             }

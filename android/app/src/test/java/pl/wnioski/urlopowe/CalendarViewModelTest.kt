@@ -79,6 +79,19 @@ class CalendarViewModelTest {
     }
 
     @Test
+    fun toggleViewBuildsYearGrid() {
+        val vm = vmWith()
+        vm.toggleView()
+        assertEquals(pl.wnioski.urlopowe.ui.ViewMode.YEAR, vm.state.value.viewMode)
+        assertEquals(12, vm.state.value.yearMonths.size)
+        // klik mini-miesiąca wraca do widoku miesięcznego
+        val target = vm.state.value.yearMonths[5].ym
+        vm.openMonth(target)
+        assertEquals(pl.wnioski.urlopowe.ui.ViewMode.MONTH, vm.state.value.viewMode)
+        assertEquals(target, vm.state.value.ym)
+    }
+
+    @Test
     fun reclickStartDeselects() {
         val vm = vmWith()
         val cells = vm.state.value.cells.filterNotNull()
