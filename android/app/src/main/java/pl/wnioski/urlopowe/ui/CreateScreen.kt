@@ -97,7 +97,7 @@ fun CreateScreen(
 
                 Text("Dane wniosku", fontWeight = FontWeight.Medium)
                 state.visibleFields.forEach { f ->
-                    FormField(f, state.fieldValues[f.name] ?: "", autoHint(f, state.fieldValues)) { v ->
+                    FormField(f, state.fieldValues[f.name] ?: "", autoHint(f, state.fieldValues, state.dniRobocze)) { v ->
                         vm.setField(f.name, v)
                     }
                 }
@@ -123,15 +123,17 @@ fun CreateScreen(
     }
 }
 
-/** Podpowiedź „N dni kalendarzowych" dla pól auto_z_zakresu z pustą wartością. */
-private fun autoHint(field: FieldDto, values: Map<String, String>): String {
+/** Podpowiedź dla pól auto_z_zakresu (puste): dni robocze (bez świąt/weekendów) + kalendarzowe (§22.4). */
+private fun autoHint(field: FieldDto, values: Map<String, String>, dniRobocze: Int?): String {
     if (!field.autoZZakresu) return field.hint
     if (!(values[field.name] ?: "").isBlank()) return field.hint
     val od = values["data_od"]; val doo = values["data_do"]
     if (od.isNullOrBlank() || doo.isNullOrBlank()) return field.hint
     return try {
-        val d = java.time.temporal.ChronoUnit.DAYS.between(LocalDate.parse(od), LocalDate.parse(doo)) + 1
-        if (d > 0) "Zakres obejmuje $d dni kalendarzowych." else field.hint
+        val cal = java.time.temporal.ChronoUnit.DAYS.between(LocalDate.parse(od), LocalDate.parse(doo)) + 1
+        if (cal <= 0) field.hint
+        else if (dniRobocze != null) "Zakres: $dniRobocze dni roboczych ($cal kalendarzowych)."
+        else "Zakres obejmuje $cal dni kalendarzowych."
     } catch (e: Exception) { field.hint }
 }
 

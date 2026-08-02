@@ -32,6 +32,7 @@ data class CreateState(
     val fieldValues: Map<String, String> = emptyMap(),
     val visibleFields: List<FieldDto> = emptyList(),
     val weekendPrompt: WeekendPrompt? = null,
+    val dniRobocze: Int? = null,  // §22.4: dni robocze zakresu (bez świąt/weekendów) — podpowiedź
 )
 
 private val MIESIACE_DOP = listOf(
@@ -78,9 +79,24 @@ class CreateViewModel(
                     if (!prefillTo.isNullOrBlank() && m.containsKey("data_do")) m["data_do"] = prefillTo
                 }
                 push(types, types.first().id)
+                refreshWorkingDays()
             } catch (e: Exception) {
                 _state.update { it.copy(loading = false, error = "Nie udało się wczytać formularza.") }
             }
+        }
+    }
+
+    /** §22.4: policz dni robocze zakresu (pomija święta/weekendy) przez /api/dni-robocze. */
+    private fun refreshWorkingDays() {
+        val vals = byType[_state.value.activeType] ?: emptyMap()
+        val od = vals["data_od"]; val doo = vals["data_do"]
+        if (od.isNullOrBlank() || doo.isNullOrBlank()) {
+            _state.update { it.copy(dniRobocze = null) }
+            return
+        }
+        viewModelScope.launch {
+            val n = runCatching { repo.workingDays(od, doo).toInt() }.getOrNull()
+            _state.update { it.copy(dniRobocze = n) }
         }
     }
 
@@ -101,7 +117,10 @@ class CreateViewModel(
         }
     }
 
-    fun selectType(id: String) = push(_state.value.types, id)
+    fun selectType(id: String) {
+        push(_state.value.types, id)
+        refreshWorkingDays()
+    }
 
     fun setCommon(name: String, v: String) {
         commonValues[name] = v
@@ -111,6 +130,7 @@ class CreateViewModel(
     fun setField(name: String, v: String) {
         byType.getOrPut(_state.value.activeType) { mutableMapOf() }[name] = v
         push(_state.value.types, _state.value.activeType)
+        if (name == "data_od" || name == "data_do") refreshWorkingDays()
     }
 
     fun submit() {

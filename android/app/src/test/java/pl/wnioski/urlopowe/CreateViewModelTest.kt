@@ -71,6 +71,14 @@ class CreateViewModelTest {
     }
 
     @Test
+    fun computesWorkingDaysFromApi() {
+        // §22.4: po prefillu dat VM pobiera dni robocze z /api/dni-robocze
+        val api = FakeApi(registry = registry, workingDays = 5.0)
+        val v = CreateViewModel(ApplicationRepository(api), prefillFrom = "2026-07-13", prefillTo = "2026-07-17", year = 2026)
+        assertEquals(5, v.state.value.dniRobocze)
+    }
+
+    @Test
     fun submitBlockedWhenRequiredMissing() {
         // brak miejscowości/pracodawcy → walidacja klienta blokuje (§22.2), nic nie wysyła
         val (v, api) = vm(from = "2026-07-13", to = "2026-07-17")
