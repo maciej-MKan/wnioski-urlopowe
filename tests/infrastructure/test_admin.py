@@ -76,3 +76,52 @@ def test_migrate_database(tmp_path, monkeypatch):
     # ponowna migracja do niepustego celu → odmowa
     ok2, _ = migrate_database(target_url)
     assert not ok2
+
+
+def _seed_sqlite(data_dir):
+    from app.domain.entitlement import Entitlement
+    from app.domain.leave_record import LeaveRecord
+    from app.domain.values import Status
+    from app.infrastructure.persistence import (
+        SqliteEntitlementRepository,
+        SqliteLeaveRecordRepository,
+        SqliteUserRepository,
+    )
+    u = SqliteUserRepository(data_dir).create("ola", "h:x", "2026-01-01T00:00:00")
+    SqliteLeaveRecordRepository(u.id, data_dir).save(LeaveRecord.manual(
+        {"typ": "wypoczynkowy", "data_od": "2026-06-01", "data_do": "2026-06-05"},
+        now="2026-01-01T00:00:00", status=Status("zaakceptowany"), working_days=5.0, hours=None))
+    SqliteEntitlementRepository(u.id, data_dir).save(Entitlement(
+        year=2026, leave_type="wypoczynkowy", active=True, limit_days=26,
+        limit_hours=None, carried_over=None, notes=""))
+
+
+def test_auto_migrate_fresh_does_nothing(tmp_path, monkeypatch):
+    monkeypatch.delenv("WNIOSKI_DB_URL", raising=False)
+    from app.admin import auto_migrate_on_startup
+    src, dst = tmp_path / "src", tmp_path / "dst"
+    src.mkdir(); dst.mkdir()
+    target = f"sqlite:///{dst / 'wnioski.db'}"
+    assert auto_migrate_on_startup(target_url=target, data_dir=src) is None  # brak SQLite → świeży
+
+
+def test_auto_migrate_upgrades_then_idempotent(tmp_path, monkeypatch):
+    monkeypatch.delenv("WNIOSKI_DB_URL", raising=False)
+    from sqlalchemy import create_engine, func, select
+
+    from app.admin import auto_migrate_on_startup
+    from app.infrastructure import persistence as P
+
+    src, dst = tmp_path / "src", tmp_path / "dst"
+    src.mkdir(); dst.mkdir()
+    _seed_sqlite(src)
+    target = f"sqlite:///{dst / 'wnioski.db'}"
+
+    msg = auto_migrate_on_startup(target_url=target, data_dir=src)  # aktualizacja → migruje
+    assert msg and "Zmigrowano" in msg
+    with create_engine(target).connect() as c:
+        assert c.execute(select(func.count()).select_from(P.app_user)).scalar_one() == 1
+
+    # druga próba: cel ma dane → nic (idempotencja); SQLite źródłowe zostaje jako backup
+    assert auto_migrate_on_startup(target_url=target, data_dir=src) is None
+    assert (src / "wnioski.db").exists()

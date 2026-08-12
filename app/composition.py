@@ -46,7 +46,10 @@ def default_container() -> Container:
     )
     from .infrastructure.security import BcryptPasswordHasher, TokenService, load_secret
 
+    from .admin import auto_migrate_on_startup
+
     data_dir = default_data_dir()
+    auto_migrate_on_startup(data_dir=data_dir)  # §23.1: idempotentna migracja SQLite→Postgres, gdy trzeba
     ensure_schema(data_dir)  # create/migrate schema; adopt legacy data to an owner account
     generator = WeasyPrintDocumentGenerator()  # shared, stateless
     tokens = TokenService(load_secret(data_dir))

@@ -14,7 +14,9 @@ services:
       # GOOGLE_CLIENT_SECRET: "..."
       # --- PostgreSQL (§23.1) ---------------------------------------------------------
       # Domyślnie aplikacja używa SQLite (plik w /srv/data). Aby przełączyć na Postgres,
-      # odkomentuj poniższą zmienną (i sekcję `db` niżej), a dane przenieś skryptem:
+      # odkomentuj poniższą zmienną (i sekcję `db` + `depends_on` niżej) oraz zrestartuj.
+      # Przy starcie backend automatycznie przeniesie dane z SQLite do pustego Postgresa
+      # (jednorazowo, idempotentnie); plik SQLite zostaje jako backup. Ręczna migracja:
       #   docker compose exec wnioski python -m app migruj-do-postgres "$WNIOSKI_DB_URL"
       # WNIOSKI_DB_URL: "postgresql+psycopg://wnioski:zmien-haslo@db:5432/wnioski"
     volumes:

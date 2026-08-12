@@ -138,12 +138,11 @@ Po restarcie serwera wolumen trzeba odblokować (`cryptsetup open` + `mount`) pr
 
 **PostgreSQL (opcjonalnie).** Domyślnie SQLite. Aby użyć Postgresa, ustaw
 `WNIOSKI_DB_URL=postgresql+psycopg://user:hasło@db:5432/wnioski` i odkomentuj serwis `db`
-w `docker-compose.yml`. Przeniesienie istniejących danych z SQLite (konta, wnioski, limity;
-pliki PDF/załączniki zostają na dysku):
-
-```bash
-docker compose exec wnioski python -m app migruj-do-postgres "$WNIOSKI_DB_URL"
-```
+w `docker-compose.yml`, po czym **zrestartuj**. Backend przy starcie **automatycznie**
+przenosi dane z SQLite do pustego Postgresa (jednorazowo, idempotentnie — świeża instalacja
+startuje od razu na Postgresie; kolejne starty nic nie robią). **Plik SQLite zostaje jako backup.**
+Migrację można też uruchomić ręcznie: `python -m app migruj-do-postgres "$WNIOSKI_DB_URL"`
+(kopiuje konta/wnioski/limity; pliki PDF/załączniki zostają na dysku).
 
 Postgres **nie** zastępuje szyfrowania at-rest — wolumen bazy również trzymaj na LUKS.
 
