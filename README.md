@@ -109,6 +109,34 @@ obok kont lokalnych. Bez tych zmiennych przycisk się nie pokazuje i nic się ni
 przepływ obsługuje **klient mobilny** — po zalogowaniu backend wraca deep linkiem
 `pl.wnioski.urlopowe://auth` z tokenem (parametr `?native=1`).
 
+**Zarządzanie kontem.** W **Ustawieniach** (web i mobile) można:
+- **zmienić hasło** (podając obecne) — `POST /api/haslo`;
+- **usunąć konto** wraz ze wszystkimi danymi (wnioski, limity, profil, pliki PDF/załączniki) —
+  `DELETE /api/konto`, nieodwracalne, z dwustopniowym potwierdzeniem.
+
+**Reset zapomnianego hasła (self-host).** Bez poczty — administrator serwera resetuje hasło z CLI
+(pominięcie hasła → zostanie wygenerowane i wypisane):
+
+```bash
+docker compose exec wnioski python -m app reset-haslo <username> [<nowe-haslo>]
+```
+
+**Bezpieczeństwo danych „at-rest”.** Baza (SQLite) i pliki PDF/załączniki leżą w wolumenie
+`WNIOSKI_DATA_DIR`. Hasła są hashowane (bcrypt), ale reszta danych jest **jawna** dla kogoś z
+dostępem do hosta/wolumenu. Aby zaszyfrować dane w spoczynku, **postaw wolumen na zaszyfrowanym
+nośniku (LUKS/dm-crypt)** — transparentne dla aplikacji, chroni całość (baza + pliki):
+
+```bash
+cryptsetup luksFormat /dev/sdX
+cryptsetup open /dev/sdX wnioski-crypt
+mkfs.ext4 /dev/mapper/wnioski-crypt
+mount /dev/mapper/wnioski-crypt /srv/wnioski-data   # montujemy tu WNIOSKI_DATA_DIR
+```
+
+Po restarcie serwera wolumen trzeba odblokować (`cryptsetup open` + `mount`) przed startem kontenera.
+Migracja bazy na **PostgreSQL** (poświadczenia w env) jest planowana osobno (§23.1 w planie); Postgres
+nie zastępuje szyfrowania at-rest — nadal wymaga LUKS/szyfrowania nośnika po stronie serwera bazy.
+
 ## Jak używać
 
 1. Wypełnij **dane wspólne** (miejscowość, data, imię i nazwisko, pracodawca) — możesz je zapisać
