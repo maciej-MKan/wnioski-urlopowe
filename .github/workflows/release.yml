@@ -21,6 +21,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
+          cache: gradle
 
       - uses: android-actions/setup-android@v3
 
@@ -59,14 +60,21 @@ jobs:
         if: steps.sign.outputs.signed == 'true'
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
+      # Pobranie dystrybucji Gradle bywa flaky (SocketException) — prefetch z retry.
+      - name: Prefetch Gradle
+        if: steps.sign.outputs.signed == 'true'
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          for i in 1 2 3; do ./gradlew --no-daemon --version && exit 0; echo "próba $i nieudana, ponawiam…"; sleep 10; done
+          exit 1
+
       - name: Build release APK
         if: steps.sign.outputs.signed == 'true'
         working-directory: android
         env:
           PROD_URL: ${{ secrets.PROD_BASE_URL }}
-        run: |
-          chmod +x gradlew
-          ./gradlew --no-daemon :app:assembleRelease ${PROD_URL:+-PPROD_BASE_URL=$PROD_URL}
+        run: ./gradlew --no-daemon :app:assembleRelease ${PROD_URL:+-PPROD_BASE_URL=$PROD_URL}
 
       - name: Rename APK
         if: steps.sign.outputs.signed == 'true'

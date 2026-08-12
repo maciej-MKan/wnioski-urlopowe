@@ -42,17 +42,25 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
+          cache: gradle
 
       - uses: android-actions/setup-android@v3
 
       - name: Install SDK packages
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
-      - name: Build debug APK + run JVM tests
+      # Pobranie dystrybucji Gradle bywa flaky (SocketException) — prefetch z retry,
+      # by ponawiać TYLKO pobranie, a nie build/testy.
+      - name: Prefetch Gradle
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew --no-daemon :app:assembleDebug :app:testDebugUnitTest
+          for i in 1 2 3; do ./gradlew --no-daemon --version && exit 0; echo "próba $i nieudana, ponawiam…"; sleep 10; done
+          exit 1
+
+      - name: Build debug APK + run JVM tests
+        working-directory: android
+        run: ./gradlew --no-daemon :app:assembleDebug :app:testDebugUnitTest
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
