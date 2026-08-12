@@ -52,10 +52,14 @@ Obsługiwane wnioski:
 Dwa niezależne środowiska (osobne bazy/wolumeny — testy nie ruszają danych produkcyjnych):
 
 ```bash
-# PRODUKCJA — port 8137, wolumen wnioski-urlopowe_wnioski-dane
-docker compose up -d --build
+# PRODUKCJA — port 8137 (PostgreSQL, §23.1). Pierwsze uruchomienie: ./setup.sh
+# ustawi/wygeneruje hasło bazy w .env (gitignored), a przy pierwszym starcie dane z SQLite
+# migrują się automatycznie do Postgresa (plik SQLite zostaje jako backup).
+./setup.sh
+# Kolejne starty (gdy .env już jest): docker compose up -d --build
+#   Bez POSTGRES_PASSWORD w .env compose przerywa z jasnym komunikatem.
 
-# DEV / TEST — port 8138, osobny wolumen wnioski-dev_wnioski-dane-dev
+# DEV / TEST — port 8138, osobny wolumen; działa na SQLite (piaskownica)
 docker compose -f docker-compose.dev.yml up -d --build
 ```
 

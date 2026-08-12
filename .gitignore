@@ -10,6 +10,9 @@ venv/
 /data/
 secret.key
 
+# Sekrety środowiska (hasło Postgresa itd.) — NIE wersjonujemy
+.env
+
 # Dokumentacja robocza — nie publikujemy
 /docs/
 
