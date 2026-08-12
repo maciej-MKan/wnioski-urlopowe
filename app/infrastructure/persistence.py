@@ -1,18 +1,16 @@
-"""Persistence of records in SQLite (standard library, no dependencies).
+"""Persistence of records via SQLAlchemy Core — portable across SQLite and PostgreSQL.
 
-Adapters of the repository ports. A single-file database in the data directory
-(`WNIOSKI_DATA_DIR`, `data/` by default; `/srv/data` on a volume in the container). PDFs land
-on disk under a name derived from the content hash. The schema is versioned via
-`PRAGMA user_version`.
+Domyślnie SQLite (jeden plik w `WNIOSKI_DATA_DIR`), a przez `WNIOSKI_DB_URL` można wskazać
+PostgreSQL (`postgresql+psycopg://user:pass@host:5432/db`). Silnik jest wybierany z URL-a, więc
+testy/lokalnie chodzą na SQLite, a prod może użyć Postgresa bez zmian w kodzie repozytoriów.
 
-§18 multi-tenancy: every leave record and entitlement carries a `user_id`; the record and
-entitlement repositories are **scoped to one user** (constructed with their id) and filter
-every query by it, so a user only ever sees their own data. The stored `tresc_hash` is
-namespaced with the user id (`"<user_id>:<content_hash>"`) so idempotent upsert stays
-per-user without changing the global UNIQUE constraint.
+PDF-y i załączniki nadal leżą na dysku w katalogu `WNIOSKI_DATA_DIR/pdfs` (nazwa z content-hasha).
+Schema dla świeżej bazy tworzy `MetaData.create_all`; **istniejąca** baza SQLite z czasów przed
+wielodostępem jest migrowana surowym kodem sqlite3 (`_sqlite_legacy_upgrade`, ścieżka v3→v4).
 
-SQLite column names stay Polish — they are the storage contract; the Python side is English
-and the `_from_row` mapping bridges the two.
+§18 multi-tenancy: każdy rekord i uprawnienie ma `user_id`; repozytoria rekordów/uprawnień są
+**zawężone do jednego użytkownika**. `tresc_hash` jest namespace'owany id użytkownika
+(`"<user_id>:<hash>"`), by idempotentny upsert był per-user. Nazwy kolumn zostają polskie.
 """
 from __future__ import annotations
 
@@ -23,7 +21,29 @@ import secrets
 import sqlite3
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
+
+from sqlalchemy import (
+    Column,
+    Float,
+    Index,
+    Integer,
+    MetaData,
+    PrimaryKeyConstraint,
+    Table,
+    Text,
+    create_engine,
+    delete,
+    func,
+    insert,
+    select,
+    text,
+    update,
+)
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.engine import Engine
+from sqlalchemy.pool import NullPool
 
 from ..domain.entitlement import Entitlement
 from ..domain.leave_record import LeaveRecord
@@ -34,64 +54,73 @@ from ..domain.values import DateRange, Pool, Source, Status
 _log = logging.getLogger("wnioski")
 _SCHEMA_VERSION = 6
 
-# MIME → on-disk file extension (§13.1). Only allowed attachment types.
+# MIME → rozszerzenie pliku na dysku (§13.1). Tylko dozwolone typy załączników.
 _EXTENSION = {"application/pdf": ".pdf", "image/jpeg": ".jpg"}
 
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS app_user (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    username   TEXT NOT NULL UNIQUE,
-    haslo_hash TEXT NOT NULL DEFAULT '',
-    google_sub TEXT,
-    profil     TEXT NOT NULL DEFAULT '{}',
-    utworzono  TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS entitlement (
-    user_id                INTEGER NOT NULL,
-    rok                    INTEGER NOT NULL,
-    typ                    TEXT    NOT NULL,
-    aktywny                INTEGER NOT NULL DEFAULT 1,
-    limit_dni              REAL,
-    limit_godzin           REAL,
-    bilans_z_przeniesienia REAL,
-    uwagi                  TEXT    NOT NULL DEFAULT '',
-    PRIMARY KEY (user_id, rok, typ)
-);
-CREATE TABLE IF NOT EXISTS leave_record (
-    id                INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id           INTEGER,
-    typ               TEXT    NOT NULL,
-    rok               INTEGER,
-    za_okres          TEXT    NOT NULL DEFAULT 'biezacy',
-    zrodlo            TEXT    NOT NULL DEFAULT 'wniosek',
-    pdf_path          TEXT,
-    zalacznik_mime    TEXT,
-    zalacznik_nazwa   TEXT,
-    data_od           TEXT,
-    data_do           TEXT,
-    dni_robocze       REAL,
-    godziny           REAL,
-    dane_json         TEXT    NOT NULL,
-    status            TEXT    NOT NULL DEFAULT 'do_akceptacji',
-    korekta_powod     TEXT,
-    data_od_pierwotna TEXT,
-    data_do_pierwotna TEXT,
-    tresc_hash        TEXT    UNIQUE,
-    utworzono         TEXT    NOT NULL,
-    zmieniono         TEXT    NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_leave_record_typ ON leave_record(typ);
-"""
+# --- Schemat (SQLAlchemy Core — źródło prawdy dla świeżej bazy, oba dialekty) ----------
 
-# Indexes created separately — after the columns exist (fresh: table def; legacy: migration).
-_INDEXES = """
-CREATE INDEX IF NOT EXISTS idx_leave_record_user ON leave_record(user_id, rok);
-CREATE UNIQUE INDEX IF NOT EXISTS ux_user_google ON app_user(google_sub) WHERE google_sub IS NOT NULL;
-"""
+_metadata = MetaData()
+
+app_user = Table(
+    "app_user", _metadata,
+    Column("id", Integer, primary_key=True),
+    Column("username", Text, nullable=False, unique=True),
+    Column("haslo_hash", Text, nullable=False, server_default=""),
+    Column("google_sub", Text),
+    Column("profil", Text, nullable=False, server_default="{}"),
+    Column("utworzono", Text, nullable=False),
+)
+
+entitlement = Table(
+    "entitlement", _metadata,
+    Column("user_id", Integer, nullable=False),
+    Column("rok", Integer, nullable=False),
+    Column("typ", Text, nullable=False),
+    Column("aktywny", Integer, nullable=False, server_default="1"),
+    Column("limit_dni", Float),
+    Column("limit_godzin", Float),
+    Column("bilans_z_przeniesienia", Float),
+    Column("uwagi", Text, nullable=False, server_default=""),
+    PrimaryKeyConstraint("user_id", "rok", "typ"),
+)
+
+leave_record = Table(
+    "leave_record", _metadata,
+    Column("id", Integer, primary_key=True),
+    Column("user_id", Integer),
+    Column("typ", Text, nullable=False),
+    Column("rok", Integer),
+    Column("za_okres", Text, nullable=False, server_default="biezacy"),
+    Column("zrodlo", Text, nullable=False, server_default="wniosek"),
+    Column("pdf_path", Text),
+    Column("zalacznik_mime", Text),
+    Column("zalacznik_nazwa", Text),
+    Column("data_od", Text),
+    Column("data_do", Text),
+    Column("dni_robocze", Float),
+    Column("godziny", Float),
+    Column("dane_json", Text, nullable=False),
+    Column("status", Text, nullable=False, server_default="do_akceptacji"),
+    Column("korekta_powod", Text),
+    Column("data_od_pierwotna", Text),
+    Column("data_do_pierwotna", Text),
+    Column("tresc_hash", Text, unique=True),
+    Column("utworzono", Text, nullable=False),
+    Column("zmieniono", Text, nullable=False),
+    Index("idx_leave_record_typ", "typ"),
+    Index("idx_leave_record_user", "user_id", "rok"),
+)
+
+# Unikalny częściowy indeks na google_sub (tylko gdy niepusty) — składnia per dialekt.
+Index(
+    "ux_user_google", app_user.c.google_sub, unique=True,
+    sqlite_where=text("google_sub IS NOT NULL"),
+    postgresql_where=text("google_sub IS NOT NULL"),
+)
 
 
 def default_data_dir() -> Path:
-    """Data directory: from `WNIOSKI_DATA_DIR` or `data/` in the project directory."""
+    """Katalog danych: z `WNIOSKI_DATA_DIR` albo `data/` w katalogu projektu."""
     fallback = Path(__file__).resolve().parent.parent.parent / "data"
     return Path(os.environ.get("WNIOSKI_DATA_DIR", str(fallback)))
 
@@ -100,7 +129,54 @@ def _now() -> str:
     return datetime.now().isoformat(timespec="seconds")
 
 
-def _connect(db: Path) -> sqlite3.Connection:
+# --- Silnik (wybór z URL-a; cache per URL) --------------------------------------------
+
+_engines: dict[str, Engine] = {}
+
+
+def _database_url(data_dir: Optional[Path]) -> str:
+    url = os.environ.get("WNIOSKI_DB_URL")
+    if url:
+        return url
+    db = (Path(data_dir) if data_dir else default_data_dir()) / "wnioski.db"
+    return f"sqlite:///{db}"
+
+
+def _engine(data_dir: Optional[Path] = None) -> Engine:
+    url = _database_url(data_dir)
+    eng = _engines.get(url)
+    if eng is None:
+        if url.startswith("sqlite"):
+            # NullPool + check_same_thread=False: nowe połączenie na operację (jak dotąd), bezpieczne
+            # dla wątków workerów FastAPI.
+            eng = create_engine(url, connect_args={"check_same_thread": False}, poolclass=NullPool, future=True)
+        else:
+            eng = create_engine(url, pool_pre_ping=True, future=True)
+        _engines[url] = eng
+    return eng
+
+
+def _dialect_insert(engine: Engine):
+    return pg_insert if engine.dialect.name == "postgresql" else sqlite_insert
+
+
+# --- Schema: świeża (SQLAlchemy) + legacy upgrade istniejącego SQLite -------------------
+
+def ensure_schema(data_dir: Optional[Path] = None) -> None:
+    """Startowa inicjalizacja schematu. Świeża baza (SQLite/Postgres) → `create_all`;
+    istniejąca **stara** baza SQLite (sprzed wielodostępu) → migracja surowym sqlite3 (v3→v4,
+    dodanie `google_sub`/`profil`), by zachować dane pod kontem właściciela.
+    """
+    directory = Path(data_dir) if data_dir else default_data_dir()
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "pdfs").mkdir(parents=True, exist_ok=True)
+    engine = _engine(data_dir)
+    if engine.dialect.name == "sqlite":
+        _sqlite_legacy_upgrade(directory / "wnioski.db")
+    _metadata.create_all(engine)
+
+
+def _sqlite_connect(db: Path) -> sqlite3.Connection:
     conn = sqlite3.connect(db)
     conn.row_factory = sqlite3.Row
     return conn
@@ -116,39 +192,22 @@ def _table_exists(conn: sqlite3.Connection, table: str) -> bool:
     ).fetchone() is not None
 
 
-def _create_tables(db: Path) -> None:
-    """Idempotently create the current-schema tables (no migration/seeding)."""
-    conn = _connect(db)
+def _sqlite_legacy_upgrade(db: Path) -> None:
+    """Migruje istniejącą starą (jednoużytkownikową) bazę SQLite. Dla nieistniejącej/świeżej
+    nic nie robi — resztę utworzy `create_all`."""
+    if not db.exists():
+        return
+    conn = _sqlite_connect(db)
     try:
-        conn.executescript(_SCHEMA)
-        conn.commit()
-    finally:
-        conn.close()
-
-
-def ensure_schema(data_dir: Optional[Path] = None) -> None:
-    """One-time startup: create tables, migrate v3→v4 and adopt legacy data to an owner.
-
-    Fresh installs get the v4 schema directly. Upgrading a single-user (v<4) database adds
-    `user_id`, seeds an **owner** account and assigns all existing records/entitlements to it,
-    so pre-multi-user data is preserved under one account.
-    """
-    directory = Path(data_dir) if data_dir else default_data_dir()
-    directory.mkdir(parents=True, exist_ok=True)
-    (directory / "pdfs").mkdir(parents=True, exist_ok=True)
-    conn = _connect(directory / "wnioski.db")
-    try:
-        legacy = _table_exists(conn, "leave_record") and not _has_column(conn, "leave_record", "user_id")
-        conn.executescript(_SCHEMA)  # creates any missing tables (app_user; on fresh: all v5)
-        if legacy:
+        if not _table_exists(conn, "leave_record"):
+            return  # świeży plik bez tabel — zostawiamy create_all
+        if not _has_column(conn, "leave_record", "user_id"):
             _upgrade_to_v4(conn)
-        # v4 → v5: Google account linking column.
-        if not _has_column(conn, "app_user", "google_sub"):
-            conn.execute("ALTER TABLE app_user ADD COLUMN google_sub TEXT")
-        # v5 → v6: per-user profile (default common fields — name, position, employer, §19).
-        if not _has_column(conn, "app_user", "profil"):
-            conn.execute("ALTER TABLE app_user ADD COLUMN profil TEXT NOT NULL DEFAULT '{}'")
-        conn.executescript(_INDEXES)  # columns now exist in all paths
+        if _table_exists(conn, "app_user"):
+            if not _has_column(conn, "app_user", "google_sub"):
+                conn.execute("ALTER TABLE app_user ADD COLUMN google_sub TEXT")
+            if not _has_column(conn, "app_user", "profil"):
+                conn.execute("ALTER TABLE app_user ADD COLUMN profil TEXT NOT NULL DEFAULT '{}'")
         conn.execute(f"PRAGMA user_version = {_SCHEMA_VERSION}")
         conn.commit()
     finally:
@@ -156,7 +215,7 @@ def ensure_schema(data_dir: Optional[Path] = None) -> None:
 
 
 def _seed_owner(conn: sqlite3.Connection) -> int:
-    """Ensures an owner account exists (to adopt legacy data); returns its id."""
+    """Zapewnia konto właściciela (do adopcji danych legacy); zwraca jego id."""
     row = conn.execute("SELECT id FROM app_user ORDER BY id LIMIT 1").fetchone()
     if row:
         return row["id"]
@@ -181,32 +240,39 @@ def _seed_owner(conn: sqlite3.Connection) -> int:
 
 
 def _upgrade_to_v4(conn: sqlite3.Connection) -> None:
-    """Migrate a pre-multi-user database: add user_id, seed owner, adopt existing data."""
+    """Migracja bazy sprzed wielodostępu: dodaj user_id, utwórz właściciela, adoptuj dane."""
+    # app_user musi istnieć, by zasiać właściciela.
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS app_user ("
+        " id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL UNIQUE,"
+        " haslo_hash TEXT NOT NULL DEFAULT '', google_sub TEXT,"
+        " profil TEXT NOT NULL DEFAULT '{}', utworzono TEXT NOT NULL)"
+    )
     for column in ("user_id", "zalacznik_mime", "zalacznik_nazwa"):
         if not _has_column(conn, "leave_record", column):
             kind = "INTEGER" if column == "user_id" else "TEXT"
             conn.execute(f"ALTER TABLE leave_record ADD COLUMN {column} {kind}")
 
     owner_id = _seed_owner(conn)
-
-    # Adopt orphan records; namespace the content hash so per-user idempotency holds.
     conn.execute(
-        "UPDATE leave_record SET user_id = ?, tresc_hash = ? || ':' || tresc_hash "
-        "WHERE user_id IS NULL",
+        "UPDATE leave_record SET user_id = ?, tresc_hash = ? || ':' || tresc_hash WHERE user_id IS NULL",
         (owner_id, str(owner_id)),
     )
 
-    # Rebuild entitlement with the composite primary key (user_id, rok, typ).
     if not _has_column(conn, "entitlement", "user_id"):
         conn.execute("ALTER TABLE entitlement RENAME TO entitlement_old")
-        conn.executescript(_SCHEMA)  # recreates `entitlement` with the new shape
         conn.execute(
-            """
-            INSERT INTO entitlement
-                (user_id, rok, typ, aktywny, limit_dni, limit_godzin, bilans_z_przeniesienia, uwagi)
-            SELECT ?, rok, typ, aktywny, limit_dni, limit_godzin, bilans_z_przeniesienia, uwagi
-            FROM entitlement_old
-            """,
+            "CREATE TABLE entitlement ("
+            " user_id INTEGER NOT NULL, rok INTEGER NOT NULL, typ TEXT NOT NULL,"
+            " aktywny INTEGER NOT NULL DEFAULT 1, limit_dni REAL, limit_godzin REAL,"
+            " bilans_z_przeniesienia REAL, uwagi TEXT NOT NULL DEFAULT '',"
+            " PRIMARY KEY (user_id, rok, typ))"
+        )
+        conn.execute(
+            "INSERT INTO entitlement"
+            " (user_id, rok, typ, aktywny, limit_dni, limit_godzin, bilans_z_przeniesienia, uwagi)"
+            " SELECT ?, rok, typ, aktywny, limit_dni, limit_godzin, bilans_z_przeniesienia, uwagi"
+            " FROM entitlement_old",
             (owner_id,),
         )
         conn.execute("DROP TABLE entitlement_old")
@@ -215,40 +281,30 @@ def _upgrade_to_v4(conn: sqlite3.Connection) -> None:
 # --- User repository ------------------------------------------------------------------
 
 class SqliteUserRepository(UserRepository):
-    """User accounts in the shared SQLite database (§18)."""
+    """Konta użytkowników w bazie (nazwa historyczna; działa też na Postgresie)."""
 
     def __init__(self, data_dir: Optional[Path] = None) -> None:
-        self._db = (Path(data_dir) if data_dir else default_data_dir()) / "wnioski.db"
-        _create_tables(self._db)
+        self._engine = _engine(data_dir)
+        _metadata.create_all(self._engine)
 
     @staticmethod
-    def _from_row(row: sqlite3.Row) -> User:
+    def _from_row(row: Any) -> User:
         return User(id=row["id"], username=row["username"], password_hash=row["haslo_hash"],
                     created_at=row["utworzono"], google_sub=row["google_sub"])
 
-    def get_by_username(self, username: str) -> Optional[User]:
-        conn = _connect(self._db)
-        try:
-            row = conn.execute("SELECT * FROM app_user WHERE username = ?", (username,)).fetchone()
-        finally:
-            conn.close()
+    def _one(self, whereclause) -> Optional[User]:
+        with self._engine.connect() as conn:
+            row = conn.execute(select(app_user).where(whereclause)).mappings().fetchone()
         return self._from_row(row) if row else None
+
+    def get_by_username(self, username: str) -> Optional[User]:
+        return self._one(app_user.c.username == username)
 
     def get_by_google_sub(self, google_sub: str) -> Optional[User]:
-        conn = _connect(self._db)
-        try:
-            row = conn.execute("SELECT * FROM app_user WHERE google_sub = ?", (google_sub,)).fetchone()
-        finally:
-            conn.close()
-        return self._from_row(row) if row else None
+        return self._one(app_user.c.google_sub == google_sub)
 
     def get(self, user_id: int) -> Optional[User]:
-        conn = _connect(self._db)
-        try:
-            row = conn.execute("SELECT * FROM app_user WHERE id = ?", (user_id,)).fetchone()
-        finally:
-            conn.close()
-        return self._from_row(row) if row else None
+        return self._one(app_user.c.id == user_id)
 
     def create(self, username: str, password_hash: str, now: str) -> User:
         return self._insert(username, password_hash, None, now)
@@ -257,56 +313,36 @@ class SqliteUserRepository(UserRepository):
         return self._insert(username, "", google_sub, now)
 
     def _insert(self, username: str, password_hash: str, google_sub: Optional[str], now: str) -> User:
-        conn = _connect(self._db)
-        try:
-            cur = conn.execute(
-                "INSERT INTO app_user (username, haslo_hash, google_sub, utworzono) VALUES (?, ?, ?, ?)",
-                (username, password_hash, google_sub, now),
-            )
-            conn.commit()
-            user_id = int(cur.lastrowid or 0)
-        finally:
-            conn.close()
+        stmt = insert(app_user).values(
+            username=username, haslo_hash=password_hash, google_sub=google_sub, utworzono=now,
+        ).returning(app_user.c.id)
+        with self._engine.begin() as conn:
+            user_id = int(conn.execute(stmt).scalar_one())
         return User(id=user_id, username=username, password_hash=password_hash,
                     created_at=now, google_sub=google_sub)
 
     def count(self) -> int:
-        conn = _connect(self._db)
-        try:
-            return int(conn.execute("SELECT COUNT(*) FROM app_user").fetchone()[0])
-        finally:
-            conn.close()
+        with self._engine.connect() as conn:
+            return int(conn.execute(select(func.count()).select_from(app_user)).scalar_one())
 
     def first(self) -> Optional[User]:
-        conn = _connect(self._db)
-        try:
-            row = conn.execute("SELECT * FROM app_user ORDER BY id LIMIT 1").fetchone()
-        finally:
-            conn.close()
+        with self._engine.connect() as conn:
+            row = conn.execute(select(app_user).order_by(app_user.c.id).limit(1)).mappings().fetchone()
         return self._from_row(row) if row else None
 
     def set_password(self, user_id: int, password_hash: str) -> None:
-        conn = _connect(self._db)
-        try:
-            conn.execute("UPDATE app_user SET haslo_hash = ? WHERE id = ?", (password_hash, user_id))
-            conn.commit()
-        finally:
-            conn.close()
+        with self._engine.begin() as conn:
+            conn.execute(update(app_user).where(app_user.c.id == user_id).values(haslo_hash=password_hash))
 
     def delete(self, user_id: int) -> None:
-        conn = _connect(self._db)
-        try:
-            conn.execute("DELETE FROM app_user WHERE id = ?", (user_id,))
-            conn.commit()
-        finally:
-            conn.close()
+        with self._engine.begin() as conn:
+            conn.execute(delete(app_user).where(app_user.c.id == user_id))
 
     def get_profile(self, user_id: int) -> dict:
-        conn = _connect(self._db)
-        try:
-            row = conn.execute("SELECT profil FROM app_user WHERE id = ?", (user_id,)).fetchone()
-        finally:
-            conn.close()
+        with self._engine.connect() as conn:
+            row = conn.execute(
+                select(app_user.c.profil).where(app_user.c.id == user_id)
+            ).mappings().fetchone()
         if not row or not row["profil"]:
             return {}
         try:
@@ -317,40 +353,33 @@ class SqliteUserRepository(UserRepository):
 
     def save_profile(self, user_id: int, profile: dict) -> dict:
         clean = {str(k): ("" if v is None else str(v)) for k, v in (profile or {}).items()}
-        conn = _connect(self._db)
-        try:
+        with self._engine.begin() as conn:
             conn.execute(
-                "UPDATE app_user SET profil = ? WHERE id = ?",
-                (json.dumps(clean, ensure_ascii=False), user_id),
+                update(app_user).where(app_user.c.id == user_id)
+                .values(profil=json.dumps(clean, ensure_ascii=False))
             )
-            conn.commit()
-        finally:
-            conn.close()
         return clean
 
 
 # --- Leave record repository (user-scoped) --------------------------------------------
 
 class SqliteLeaveRecordRepository(LeaveRecordRepository):
-    """Leave-record repository backed by SQLite + PDF files on disk, scoped to one user."""
+    """Repozytorium rekordów urlopu (baza + pliki PDF na dysku), zawężone do użytkownika."""
 
     def __init__(self, user_id: int, data_dir: Optional[Path] = None) -> None:
         self._user_id = user_id
         self._dir = Path(data_dir) if data_dir else default_data_dir()
-        self._db = self._dir / "wnioski.db"
         self._pdf_dir = self._dir / "pdfs"
         self._dir.mkdir(parents=True, exist_ok=True)
         self._pdf_dir.mkdir(parents=True, exist_ok=True)
-        _create_tables(self._db)
-
-    def _connect(self) -> sqlite3.Connection:
-        return _connect(self._db)
+        self._engine = _engine(data_dir)
+        _metadata.create_all(self._engine)
 
     def _hash_key(self, record: LeaveRecord) -> str:
         return f"{self._user_id}:{record.content_hash}"  # namespaced per user
 
     @staticmethod
-    def _from_row(row: sqlite3.Row) -> LeaveRecord:
+    def _from_row(row: Any) -> LeaveRecord:
         original = None
         if row["data_od_pierwotna"] or row["data_do_pierwotna"]:
             original = DateRange.from_strings(row["data_od_pierwotna"], row["data_do_pierwotna"])
@@ -383,7 +412,7 @@ class SqliteLeaveRecordRepository(LeaveRecordRepository):
             (self._pdf_dir / pdf_name).write_bytes(record.document)
 
         original = record.original_period
-        params = {
+        values = {
             "user_id": self._user_id,
             "typ": record.leave_type,
             "rok": record.year,
@@ -404,105 +433,68 @@ class SqliteLeaveRecordRepository(LeaveRecordRepository):
             "utworzono": record.created_at,
             "zmieniono": record.updated_at,
         }
-        conn = self._connect()
-        try:
-            row = conn.execute(
-                """
-                INSERT INTO leave_record
-                    (user_id, typ, rok, za_okres, zrodlo, pdf_path, zalacznik_mime, data_od, data_do,
-                     dni_robocze, godziny, dane_json, status, korekta_powod, data_od_pierwotna,
-                     data_do_pierwotna, tresc_hash, utworzono, zmieniono)
-                VALUES
-                    (:user_id, :typ, :rok, :za_okres, :zrodlo, :pdf_path, :zalacznik_mime, :data_od,
-                     :data_do, :dni_robocze, :godziny, :dane_json, :status, :korekta_powod,
-                     :data_od_pierwotna, :data_do_pierwotna, :tresc_hash, :utworzono, :zmieniono)
-                ON CONFLICT(tresc_hash) DO UPDATE SET
-                    pdf_path       = COALESCE(excluded.pdf_path, pdf_path),
-                    zalacznik_mime = COALESCE(excluded.zalacznik_mime, zalacznik_mime),
-                    zmieniono      = excluded.zmieniono
-                RETURNING *
-                """,
-                params,
-            ).fetchone()
-            conn.commit()
-        finally:
-            conn.close()
+        ins = _dialect_insert(self._engine)(leave_record).values(**values)
+        stmt = ins.on_conflict_do_update(
+            index_elements=[leave_record.c.tresc_hash],
+            set_={
+                "pdf_path": func.coalesce(ins.excluded.pdf_path, leave_record.c.pdf_path),
+                "zalacznik_mime": func.coalesce(ins.excluded.zalacznik_mime, leave_record.c.zalacznik_mime),
+                "zmieniono": ins.excluded.zmieniono,
+            },
+        ).returning(leave_record)
+        with self._engine.begin() as conn:
+            row = conn.execute(stmt).mappings().fetchone()
         return self._from_row(row)
 
     def update(self, record: LeaveRecord) -> LeaveRecord:
         if record.id is None:
             raise ValueError("Update requires a record with an assigned id.")
         original = record.original_period
-        conn = self._connect()
-        try:
+        with self._engine.begin() as conn:
             conn.execute(
-                """
-                UPDATE leave_record SET
-                    status            = :status,
-                    za_okres          = :za_okres,
-                    dni_robocze       = :dni_robocze,
-                    godziny           = :godziny,
-                    data_od           = :data_od,
-                    data_do           = :data_do,
-                    korekta_powod     = :korekta_powod,
-                    data_od_pierwotna = :data_od_pierwotna,
-                    data_do_pierwotna = :data_do_pierwotna,
-                    zmieniono         = :zmieniono
-                WHERE id = :id AND user_id = :user_id
-                """,
-                {
-                    "status": record.status.value,
-                    "za_okres": record.pool.value,
-                    "dni_robocze": record.working_days,
-                    "godziny": record.hours,
-                    "data_od": record.period.start_iso,
-                    "data_do": record.period.end_iso,
-                    "korekta_powod": record.correction_reason,
-                    "data_od_pierwotna": original.start_iso if original else None,
-                    "data_do_pierwotna": original.end_iso if original else None,
-                    "zmieniono": record.updated_at,
-                    "id": record.id,
-                    "user_id": self._user_id,
-                },
+                update(leave_record)
+                .where(leave_record.c.id == record.id, leave_record.c.user_id == self._user_id)
+                .values(
+                    status=record.status.value,
+                    za_okres=record.pool.value,
+                    dni_robocze=record.working_days,
+                    godziny=record.hours,
+                    data_od=record.period.start_iso,
+                    data_do=record.period.end_iso,
+                    korekta_powod=record.correction_reason,
+                    data_od_pierwotna=original.start_iso if original else None,
+                    data_do_pierwotna=original.end_iso if original else None,
+                    zmieniono=record.updated_at,
+                )
             )
-            conn.commit()
-        finally:
-            conn.close()
         return record
 
     def list(self, year: Optional[int] = None) -> list[LeaveRecord]:
-        query = "SELECT * FROM leave_record WHERE user_id = ?"
-        params: tuple = (self._user_id,)
+        stmt = select(leave_record).where(leave_record.c.user_id == self._user_id)
         if year is not None:
-            query += " AND rok = ?"
-            params = (self._user_id, year)
-        query += " ORDER BY COALESCE(data_od, utworzono) DESC, id DESC"
-        conn = self._connect()
-        try:
-            rows = conn.execute(query, params).fetchall()
-        finally:
-            conn.close()
+            stmt = stmt.where(leave_record.c.rok == year)
+        stmt = stmt.order_by(
+            func.coalesce(leave_record.c.data_od, leave_record.c.utworzono).desc(),
+            leave_record.c.id.desc(),
+        )
+        with self._engine.connect() as conn:
+            rows = conn.execute(stmt).mappings().fetchall()
         return [self._from_row(r) for r in rows]
 
     def get(self, record_id: int) -> Optional[LeaveRecord]:
-        conn = self._connect()
-        try:
+        with self._engine.connect() as conn:
             row = conn.execute(
-                "SELECT * FROM leave_record WHERE id = ? AND user_id = ?", (record_id, self._user_id)
-            ).fetchone()
-        finally:
-            conn.close()
+                select(leave_record).where(
+                    leave_record.c.id == record_id, leave_record.c.user_id == self._user_id)
+            ).mappings().fetchone()
         return self._from_row(row) if row else None
 
     def document(self, record_id: int) -> Optional[bytes]:
-        conn = self._connect()
-        try:
+        with self._engine.connect() as conn:
             row = conn.execute(
-                "SELECT pdf_path FROM leave_record WHERE id = ? AND user_id = ?",
-                (record_id, self._user_id),
-            ).fetchone()
-        finally:
-            conn.close()
+                select(leave_record.c.pdf_path).where(
+                    leave_record.c.id == record_id, leave_record.c.user_id == self._user_id)
+            ).mappings().fetchone()
         if not row or not row["pdf_path"]:
             return None
         path = self._pdf_dir / row["pdf_path"]
@@ -510,19 +502,15 @@ class SqliteLeaveRecordRepository(LeaveRecordRepository):
 
     def delete_all(self) -> None:
         """§23.4: kasuje wszystkie rekordy użytkownika oraz ich pliki (PDF/załączniki) z dysku."""
-        conn = self._connect()
-        try:
+        with self._engine.begin() as conn:
             paths = [
                 r["pdf_path"]
                 for r in conn.execute(
-                    "SELECT pdf_path FROM leave_record WHERE user_id = ?", (self._user_id,)
-                ).fetchall()
+                    select(leave_record.c.pdf_path).where(leave_record.c.user_id == self._user_id)
+                ).mappings().fetchall()
                 if r["pdf_path"]
             ]
-            conn.execute("DELETE FROM leave_record WHERE user_id = ?", (self._user_id,))
-            conn.commit()
-        finally:
-            conn.close()
+            conn.execute(delete(leave_record).where(leave_record.c.user_id == self._user_id))
         for path in paths:
             (self._pdf_dir / path).unlink(missing_ok=True)
 
@@ -532,12 +520,11 @@ class SqliteLeaveRecordRepository(LeaveRecordRepository):
         extension = _EXTENSION.get(mime)
         if extension is None:
             raise ValueError(f"Disallowed attachment type: {mime}")
-        conn = self._connect()
-        try:
+        with self._engine.begin() as conn:
             row = conn.execute(
-                "SELECT pdf_path FROM leave_record WHERE id = ? AND user_id = ?",
-                (record_id, self._user_id),
-            ).fetchone()
+                select(leave_record.c.pdf_path).where(
+                    leave_record.c.id == record_id, leave_record.c.user_id == self._user_id)
+            ).mappings().fetchone()
             if row is None:
                 return None
             old = row["pdf_path"]
@@ -546,35 +533,22 @@ class SqliteLeaveRecordRepository(LeaveRecordRepository):
             if old and old != new:
                 (self._pdf_dir / old).unlink(missing_ok=True)
             conn.execute(
-                """
-                UPDATE leave_record SET
-                    pdf_path        = :pdf_path,
-                    zalacznik_mime  = :mime,
-                    zalacznik_nazwa = :name,
-                    zmieniono       = :now
-                WHERE id = :id AND user_id = :user_id
-                """,
-                {"pdf_path": new, "mime": mime, "name": name, "now": now,
-                 "id": record_id, "user_id": self._user_id},
+                update(leave_record)
+                .where(leave_record.c.id == record_id, leave_record.c.user_id == self._user_id)
+                .values(pdf_path=new, zalacznik_mime=mime, zalacznik_nazwa=name, zmieniono=now)
             )
-            conn.commit()
             fresh = conn.execute(
-                "SELECT * FROM leave_record WHERE id = ? AND user_id = ?", (record_id, self._user_id)
-            ).fetchone()
-        finally:
-            conn.close()
+                select(leave_record).where(
+                    leave_record.c.id == record_id, leave_record.c.user_id == self._user_id)
+            ).mappings().fetchone()
         return self._from_row(fresh) if fresh else None
 
     def attachment(self, record_id: int) -> Optional[tuple[bytes, str, Optional[str]]]:
-        conn = self._connect()
-        try:
+        with self._engine.connect() as conn:
             row = conn.execute(
-                "SELECT pdf_path, zalacznik_mime, zalacznik_nazwa FROM leave_record "
-                "WHERE id = ? AND user_id = ?",
-                (record_id, self._user_id),
-            ).fetchone()
-        finally:
-            conn.close()
+                select(leave_record.c.pdf_path, leave_record.c.zalacznik_mime, leave_record.c.zalacznik_nazwa)
+                .where(leave_record.c.id == record_id, leave_record.c.user_id == self._user_id)
+            ).mappings().fetchone()
         if not row or not row["pdf_path"]:
             return None
         path = self._pdf_dir / row["pdf_path"]
@@ -584,20 +558,15 @@ class SqliteLeaveRecordRepository(LeaveRecordRepository):
         return path.read_bytes(), mime, row["zalacznik_nazwa"]
 
     def delete(self, record_id: int) -> bool:
-        conn = self._connect()
-        try:
+        with self._engine.begin() as conn:
             row = conn.execute(
-                "SELECT pdf_path FROM leave_record WHERE id = ? AND user_id = ?",
-                (record_id, self._user_id),
-            ).fetchone()
+                select(leave_record.c.pdf_path).where(
+                    leave_record.c.id == record_id, leave_record.c.user_id == self._user_id)
+            ).mappings().fetchone()
             if row is None:
                 return False
-            conn.execute(
-                "DELETE FROM leave_record WHERE id = ? AND user_id = ?", (record_id, self._user_id)
-            )
-            conn.commit()
-        finally:
-            conn.close()
+            conn.execute(delete(leave_record).where(
+                leave_record.c.id == record_id, leave_record.c.user_id == self._user_id))
         if row["pdf_path"]:
             (self._pdf_dir / row["pdf_path"]).unlink(missing_ok=True)
         return True
@@ -606,27 +575,20 @@ class SqliteLeaveRecordRepository(LeaveRecordRepository):
 # --- Entitlement repository (user-scoped) ---------------------------------------------
 
 class SqliteEntitlementRepository(EntitlementRepository):
-    """Entitlement (limits) repository in the same SQLite database, scoped to one user."""
+    """Repozytorium uprawnień (limitów), zawężone do użytkownika."""
 
     def __init__(self, user_id: int, data_dir: Optional[Path] = None) -> None:
         self._user_id = user_id
-        self._db = (Path(data_dir) if data_dir else default_data_dir()) / "wnioski.db"
-        _create_tables(self._db)
-
-    def _connect(self) -> sqlite3.Connection:
-        return _connect(self._db)
+        self._engine = _engine(data_dir)
+        _metadata.create_all(self._engine)
 
     def delete_all(self) -> None:
         """§23.4: kasuje wszystkie uprawnienia użytkownika (wszystkie lata)."""
-        conn = self._connect()
-        try:
-            conn.execute("DELETE FROM entitlement WHERE user_id = ?", (self._user_id,))
-            conn.commit()
-        finally:
-            conn.close()
+        with self._engine.begin() as conn:
+            conn.execute(delete(entitlement).where(entitlement.c.user_id == self._user_id))
 
     @staticmethod
-    def _from_row(row: sqlite3.Row) -> Entitlement:
+    def _from_row(row: Any) -> Entitlement:
         return Entitlement(
             year=row["rok"],
             leave_type=row["typ"],
@@ -638,42 +600,34 @@ class SqliteEntitlementRepository(EntitlementRepository):
         )
 
     def for_year(self, year: int) -> dict[str, Entitlement]:
-        conn = self._connect()
-        try:
+        with self._engine.connect() as conn:
             rows = conn.execute(
-                "SELECT * FROM entitlement WHERE user_id = ? AND rok = ?", (self._user_id, year)
-            ).fetchall()
-        finally:
-            conn.close()
+                select(entitlement).where(
+                    entitlement.c.user_id == self._user_id, entitlement.c.rok == year)
+            ).mappings().fetchall()
         return {r["typ"]: self._from_row(r) for r in rows}
 
-    def save(self, entitlement: Entitlement) -> None:
-        conn = self._connect()
-        try:
-            conn.execute(
-                """
-                INSERT INTO entitlement
-                    (user_id, rok, typ, aktywny, limit_dni, limit_godzin, bilans_z_przeniesienia, uwagi)
-                VALUES
-                    (:user_id, :rok, :typ, :aktywny, :limit_dni, :limit_godzin, :bilans_z_przeniesienia, :uwagi)
-                ON CONFLICT(user_id, rok, typ) DO UPDATE SET
-                    aktywny                = excluded.aktywny,
-                    limit_dni              = excluded.limit_dni,
-                    limit_godzin           = excluded.limit_godzin,
-                    bilans_z_przeniesienia = excluded.bilans_z_przeniesienia,
-                    uwagi                  = excluded.uwagi
-                """,
-                {
-                    "user_id": self._user_id,
-                    "rok": entitlement.year,
-                    "typ": entitlement.leave_type,
-                    "aktywny": 1 if entitlement.active else 0,
-                    "limit_dni": entitlement.limit_days,
-                    "limit_godzin": entitlement.limit_hours,
-                    "bilans_z_przeniesienia": entitlement.carried_over,
-                    "uwagi": entitlement.notes,
-                },
-            )
-            conn.commit()
-        finally:
-            conn.close()
+    def save(self, ent: Entitlement) -> None:
+        values = {
+            "user_id": self._user_id,
+            "rok": ent.year,
+            "typ": ent.leave_type,
+            "aktywny": 1 if ent.active else 0,
+            "limit_dni": ent.limit_days,
+            "limit_godzin": ent.limit_hours,
+            "bilans_z_przeniesienia": ent.carried_over,
+            "uwagi": ent.notes,
+        }
+        ins = _dialect_insert(self._engine)(entitlement).values(**values)
+        stmt = ins.on_conflict_do_update(
+            index_elements=[entitlement.c.user_id, entitlement.c.rok, entitlement.c.typ],
+            set_={
+                "aktywny": ins.excluded.aktywny,
+                "limit_dni": ins.excluded.limit_dni,
+                "limit_godzin": ins.excluded.limit_godzin,
+                "bilans_z_przeniesienia": ins.excluded.bilans_z_przeniesienia,
+                "uwagi": ins.excluded.uwagi,
+            },
+        )
+        with self._engine.begin() as conn:
+            conn.execute(stmt)
