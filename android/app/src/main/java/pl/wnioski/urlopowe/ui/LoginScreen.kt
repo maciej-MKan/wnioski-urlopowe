@@ -34,8 +34,10 @@ import pl.wnioski.urlopowe.data.AppContainer
 import pl.wnioski.urlopowe.data.normalizeServerUrl
 
 @Composable
-fun LoginScreen(container: AppContainer, onLoggedIn: () -> Unit) {
+fun LoginScreen(container: AppContainer, resetKey: Int = 0, onLoggedIn: () -> Unit) {
+    // §22.8: klucz zmieniany przy wylogowaniu → nowa instancja VM (bez zachowanego success=true).
     val vm: LoginViewModel = viewModel(
+        key = "login-$resetKey",
         factory = viewModelFactory { initializer { LoginViewModel(container.auth, container.serverUrl) } }
     )
     val state by vm.state.collectAsStateWithLifecycle()

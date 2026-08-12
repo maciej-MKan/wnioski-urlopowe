@@ -74,6 +74,9 @@ private sealed interface Nav {
 fun App(container: AppContainer, pendingToken: String? = null, onTokenConsumed: () -> Unit = {}) {
     var loggedIn by rememberSaveable { mutableStateOf(container.auth.isLoggedIn()) }
     var nav by remember { mutableStateOf<Nav>(Nav.Calendar) }
+    // §22.8: zmieniamy przy wylogowaniu, by wymusić świeży LoginViewModel (inaczej Activity-scoped
+    // VM zachowuje success=true i od razu „odbija" z powrotem do aplikacji).
+    var loginKey by rememberSaveable { mutableStateOf(0) }
 
     // Deep link z logowania Google — zapisz token i wejdź do aplikacji.
     LaunchedEffect(pendingToken) {
@@ -86,13 +89,13 @@ fun App(container: AppContainer, pendingToken: String? = null, onTokenConsumed: 
     }
 
     if (!loggedIn) {
-        LoginScreen(container, onLoggedIn = { loggedIn = true })
+        LoginScreen(container, resetKey = loginKey, onLoggedIn = { loggedIn = true })
         return
     }
     when (val n = nav) {
         Nav.Calendar -> CalendarScreen(
             container,
-            onLogout = { container.auth.logout(); nav = Nav.Calendar; loggedIn = false },
+            onLogout = { container.auth.logout(); nav = Nav.Calendar; loginKey++; loggedIn = false },
             onOpenBalance = { nav = Nav.Saldo(it) },
             onCreate = { from, to -> nav = Nav.Create(from, to) },
             onManual = { from, to -> nav = Nav.Manual(from, to) },
