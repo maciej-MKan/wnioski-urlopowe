@@ -12,9 +12,37 @@ services:
       # Logowanie Google (§18b) — Authorized redirect URI: http://localhost:8137/api/auth/google/callback
       # GOOGLE_CLIENT_ID: "..."
       # GOOGLE_CLIENT_SECRET: "..."
+      # --- PostgreSQL (§23.1) ---------------------------------------------------------
+      # Domyślnie aplikacja używa SQLite (plik w /srv/data). Aby przełączyć na Postgres,
+      # odkomentuj poniższą zmienną (i sekcję `db` niżej), a dane przenieś skryptem:
+      #   docker compose exec wnioski python -m app migruj-do-postgres "$WNIOSKI_DB_URL"
+      # WNIOSKI_DB_URL: "postgresql+psycopg://wnioski:zmien-haslo@db:5432/wnioski"
     volumes:
       - wnioski-dane:/srv/data
     restart: unless-stopped
+    # depends_on:
+    #   db:
+    #     condition: service_healthy
+
+  # PostgreSQL — opcjonalny (§23.1). Odkomentuj razem z WNIOSKI_DB_URL powyżej.
+  # UWAGA at-rest: wolumen bazy trzymaj na zaszyfrowanym nośniku (LUKS) — Postgres sam nie
+  # szyfruje danych na dysku.
+  # db:
+  #   image: postgres:16-alpine
+  #   container_name: wnioski-postgres
+  #   environment:
+  #     POSTGRES_USER: wnioski
+  #     POSTGRES_PASSWORD: zmien-haslo
+  #     POSTGRES_DB: wnioski
+  #   volumes:
+  #     - wnioski-pg:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U wnioski"]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 10
+  #   restart: unless-stopped
 
 volumes:
-  wnioski-dane:   # dane produkcyjne — osobny wolumen, testy tu nie sięgają
+  wnioski-dane:   # dane produkcyjne (SQLite + pliki) — osobny wolumen, testy tu nie sięgają
+  # wnioski-pg:   # dane Postgresa (odkomentuj przy przejściu na Postgres)

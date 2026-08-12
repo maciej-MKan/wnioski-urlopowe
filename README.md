@@ -85,6 +85,7 @@ Zmienne środowiskowe (opcjonalne):
 | `WNIOSKI_OWNER` / `WNIOSKI_OWNER_PASSWORD` | konto właściciela przy migracji starej bazy | `owner` / hasło losowe (w logach) |
 | `WNIOSKI_ALLOW_REGISTER` | czy dozwolona rejestracja (`0` wyłącza) | `1` |
 | `WNIOSKI_NO_LOGIN` | **tryb bez logowania** dla instancji jednoużytkownikowej (`1` włącza) | `0` |
+| `WNIOSKI_DB_URL` | baza danych (SQLAlchemy URL); ustaw dla **PostgreSQL** | brak → SQLite w `WNIOSKI_DATA_DIR` |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | włączają **logowanie przez Google** | brak → wyłączone |
 
 **Tryb bez logowania (opcjonalny).** `WNIOSKI_NO_LOGIN=1` przełącza instancję w tryb
@@ -134,8 +135,17 @@ mount /dev/mapper/wnioski-crypt /srv/wnioski-data   # montujemy tu WNIOSKI_DATA_
 ```
 
 Po restarcie serwera wolumen trzeba odblokować (`cryptsetup open` + `mount`) przed startem kontenera.
-Migracja bazy na **PostgreSQL** (poświadczenia w env) jest planowana osobno (§23.1 w planie); Postgres
-nie zastępuje szyfrowania at-rest — nadal wymaga LUKS/szyfrowania nośnika po stronie serwera bazy.
+
+**PostgreSQL (opcjonalnie).** Domyślnie SQLite. Aby użyć Postgresa, ustaw
+`WNIOSKI_DB_URL=postgresql+psycopg://user:hasło@db:5432/wnioski` i odkomentuj serwis `db`
+w `docker-compose.yml`. Przeniesienie istniejących danych z SQLite (konta, wnioski, limity;
+pliki PDF/załączniki zostają na dysku):
+
+```bash
+docker compose exec wnioski python -m app migruj-do-postgres "$WNIOSKI_DB_URL"
+```
+
+Postgres **nie** zastępuje szyfrowania at-rest — wolumen bazy również trzymaj na LUKS.
 
 ## Jak używać
 

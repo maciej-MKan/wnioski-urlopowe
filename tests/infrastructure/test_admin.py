@@ -32,3 +32,47 @@ def test_reset_password_generates_when_missing(tmp_path, monkeypatch):
     SqliteUserRepository(tmp_path).create("ola", BcryptPasswordHasher().hash("x"), "2026-01-01T00:00:00")
     ok, msg = reset_password("ola", None)
     assert ok and "Wygenerowane hasło:" in msg
+
+
+def test_migrate_database(tmp_path, monkeypatch):
+    """§23.1: migracja danych między bazami (tu SQLite→SQLite; logika ta sama co SQLite→Postgres)."""
+    src, dst = tmp_path / "src", tmp_path / "dst"
+    src.mkdir(); dst.mkdir()
+    monkeypatch.setenv("WNIOSKI_DATA_DIR", str(src))
+
+    from sqlalchemy import create_engine, func, select
+
+    from app.admin import migrate_database
+    from app.domain.entitlement import Entitlement
+    from app.domain.leave_record import LeaveRecord
+    from app.domain.values import Status
+    from app.infrastructure import persistence as P
+    from app.infrastructure.persistence import (
+        SqliteEntitlementRepository,
+        SqliteLeaveRecordRepository,
+        SqliteUserRepository,
+        ensure_schema,
+    )
+
+    ensure_schema()
+    u = SqliteUserRepository().create("ola", "h:x", "2026-01-01T00:00:00")
+    SqliteLeaveRecordRepository(u.id).save(LeaveRecord.manual(
+        {"typ": "wypoczynkowy", "data_od": "2026-06-01", "data_do": "2026-06-05"},
+        now="2026-01-01T00:00:00", status=Status("zaakceptowany"), working_days=5.0, hours=None))
+    SqliteEntitlementRepository(u.id).save(Entitlement(
+        year=2026, leave_type="wypoczynkowy", active=True, limit_days=26,
+        limit_hours=None, carried_over=None, notes=""))
+
+    target_url = f"sqlite:///{dst / 'wnioski.db'}"
+    ok, msg = migrate_database(target_url)
+    assert ok, msg
+
+    eng = create_engine(target_url)
+    with eng.connect() as c:
+        assert c.execute(select(func.count()).select_from(P.app_user)).scalar_one() == 1
+        assert c.execute(select(func.count()).select_from(P.leave_record)).scalar_one() == 1
+        assert c.execute(select(func.count()).select_from(P.entitlement)).scalar_one() == 1
+
+    # ponowna migracja do niepustego celu → odmowa
+    ok2, _ = migrate_database(target_url)
+    assert not ok2
