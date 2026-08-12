@@ -34,10 +34,13 @@ services:
     volumes:
       - wnioski-pg:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U wnioski"]
+      test: ["CMD-SHELL", "pg_isready -U wnioski -d wnioski"]
       interval: 5s
       timeout: 5s
       retries: 10
+      # start_period: nieudane checki podczas initdb (pierwszy start / wolny sprzęt)
+      # nie liczą się do retries. Hojnie, bo docelowy serwer bywa bardzo wolny.
+      start_period: 120s
     restart: unless-stopped
 
 volumes:
