@@ -105,6 +105,14 @@ class UserRepository(ABC):
         """
 
     @abstractmethod
+    def set_password(self, user_id: int, password_hash: str) -> None:
+        """Sets a new password hash for the account (§23.2 — zmiana hasła)."""
+
+    @abstractmethod
+    def delete(self, user_id: int) -> None:
+        """Removes the account row (§23.4 — usunięcie konta). Dane tenantów kasuje warstwa wyżej."""
+
+    @abstractmethod
     def get_profile(self, user_id: int) -> dict:
         """User's saved profile (default common fields) as a dict, or `{}` (§19)."""
 

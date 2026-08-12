@@ -25,6 +25,9 @@ interface ApiService {
     @POST("api/register")
     suspend fun register(@Body body: RegisterRequest): TokenResponse
 
+    @POST("api/haslo")
+    suspend fun changePassword(@Body body: Map<String, String>): Map<String, String>
+
     @GET("api/health")
     suspend fun health(): HealthResponse
 

@@ -74,6 +74,17 @@ class AuthService:
         user_id = self._tokens.user_id(token or "")
         return self._users.get(user_id) if user_id is not None else None
 
+    def change_password(self, user_id: int, current: str, new: str) -> None:
+        """Zmienia hasło po weryfikacji obecnego (§23.2). Rzuca `InvalidCredentials` przy błędzie."""
+        user = self._users.get(user_id)
+        if user is None:
+            raise InvalidCredentials("Nie znaleziono konta.")
+        if not (new or "").strip():
+            raise InvalidCredentials("Podaj nowe hasło.")
+        if not self._hasher.verify(current or "", user.password_hash):
+            raise InvalidCredentials("Nieprawidłowe obecne hasło.")
+        self._users.set_password(user_id, self._hasher.hash(new))
+
     def profile(self, user_id: int) -> dict:
         """User's saved default common fields (name, position, employer…) — §19."""
         return self._users.get_profile(user_id)

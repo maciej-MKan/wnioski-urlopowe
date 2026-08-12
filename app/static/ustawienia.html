@@ -86,6 +86,21 @@
     </div>
   </div>
 
+  <div class="card">
+    <h2>Konto</h2>
+    <h3 style="font-size:.95rem;margin:0 0 8px">Zmiana hasła</h3>
+    <div style="max-width:420px;display:flex;flex-direction:column;gap:10px">
+      <div><label>Obecne hasło</label><input type="password" id="pw-obecne" autocomplete="current-password" style="width:100%"></div>
+      <div><label>Nowe hasło</label><input type="password" id="pw-nowe" autocomplete="new-password" style="width:100%"></div>
+      <div><label>Powtórz nowe hasło</label><input type="password" id="pw-powtorz" autocomplete="new-password" style="width:100%"></div>
+    </div>
+    <div style="margin-top:12px">
+      <button class="primary" id="zmien-haslo">Zmień hasło</button>
+      <span class="flash hidden" id="pw-ok">hasło zmienione</span>
+      <span id="pw-err" style="color:#d0453b;font-size:.85rem;margin-left:8px"></span>
+    </div>
+  </div>
+
 </div>
 
 <script src="/static/common.js?v=__VER__"></script>
@@ -185,6 +200,18 @@ $("zapisz-profil").addEventListener("click", async () => {
   const r = await api.putJson("/api/profil", zbierzProfil());
   if(!r.ok){ alert("Nie udało się zapisać profilu."); return; }
   const s=$("profil-zapisano"); s.classList.remove("hidden"); setTimeout(()=>s.classList.add("hidden"),1400);
+});
+
+// §23.2: zmiana hasła
+$("zmien-haslo").addEventListener("click", async () => {
+  const obecne = $("pw-obecne").value, nowe = $("pw-nowe").value, powt = $("pw-powtorz").value;
+  const err = $("pw-err"), ok = $("pw-ok"); err.textContent = ""; ok.classList.add("hidden");
+  if(!nowe){ err.textContent = "Podaj nowe hasło."; return; }
+  if(nowe !== powt){ err.textContent = "Nowe hasła nie są takie same."; return; }
+  const r = await api.postJson("/api/haslo", { obecne, nowe });
+  if(!r.ok){ let m = "Nie udało się zmienić hasła."; try{ const j = await r.json(); if(j.detail) m = j.detail; }catch(e){} err.textContent = m; return; }
+  ["pw-obecne","pw-nowe","pw-powtorz"].forEach(id => $(id).value = "");
+  ok.classList.remove("hidden"); setTimeout(() => ok.classList.add("hidden"), 2500);
 });
 
 (async function init(){

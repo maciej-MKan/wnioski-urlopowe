@@ -47,8 +47,12 @@ fun UstawieniaScreen(container: AppContainer, onBack: () -> Unit) {
     val settingsVm: BalanceViewModel = viewModel(
         factory = viewModelFactory { initializer { BalanceViewModel(container.settings) } }
     )
+    val accountVm: AccountViewModel = viewModel(
+        factory = viewModelFactory { initializer { AccountViewModel(container.auth) } }
+    )
     val profile by profileVm.state.collectAsStateWithLifecycle()
     val settings by settingsVm.state.collectAsStateWithLifecycle()
+    val account by accountVm.state.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { settingsVm.load() }
 
     Column(modifier = Modifier.fillMaxSize().safeDrawingPadding().padding(12.dp)) {
@@ -69,7 +73,50 @@ fun UstawieniaScreen(container: AppContainer, onBack: () -> Unit) {
             ProfileSection(profileVm, profile)
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             SettingsSection(settingsVm, settings)
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            AccountSection(accountVm, account)
         }
+    }
+}
+
+/** §23.2: zmiana hasła. */
+@Composable
+private fun AccountSection(vm: AccountViewModel, state: AccountState) {
+    Text("Konto", fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
+    Text("Zmiana hasła", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    OutlinedTextField(
+        value = state.current, onValueChange = vm::setCurrent,
+        label = { Text("Obecne hasło") }, singleLine = true,
+        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+            keyboardType = androidx.compose.ui.text.input.KeyboardType.Password),
+        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+    )
+    OutlinedTextField(
+        value = state.new, onValueChange = vm::setNew,
+        label = { Text("Nowe hasło") }, singleLine = true,
+        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+            keyboardType = androidx.compose.ui.text.input.KeyboardType.Password),
+        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+    )
+    OutlinedTextField(
+        value = state.repeat, onValueChange = vm::setRepeat,
+        label = { Text("Powtórz nowe hasło") }, singleLine = true,
+        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+            keyboardType = androidx.compose.ui.text.input.KeyboardType.Password),
+        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+    )
+    state.error?.let {
+        Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 4.dp))
+    }
+    if (state.done) {
+        Text("Hasło zmienione.", color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 4.dp))
+    }
+    Button(onClick = vm::changePassword, enabled = !state.submitting,
+        modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+        Text(if (state.submitting) "Zapisywanie…" else "Zmień hasło")
     }
 }
 

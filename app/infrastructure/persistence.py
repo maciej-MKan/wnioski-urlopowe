@@ -285,6 +285,22 @@ class SqliteUserRepository(UserRepository):
             conn.close()
         return self._from_row(row) if row else None
 
+    def set_password(self, user_id: int, password_hash: str) -> None:
+        conn = _connect(self._db)
+        try:
+            conn.execute("UPDATE app_user SET haslo_hash = ? WHERE id = ?", (password_hash, user_id))
+            conn.commit()
+        finally:
+            conn.close()
+
+    def delete(self, user_id: int) -> None:
+        conn = _connect(self._db)
+        try:
+            conn.execute("DELETE FROM app_user WHERE id = ?", (user_id,))
+            conn.commit()
+        finally:
+            conn.close()
+
     def get_profile(self, user_id: int) -> dict:
         conn = _connect(self._db)
         try:

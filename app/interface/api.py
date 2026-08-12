@@ -166,6 +166,17 @@ def create_router() -> APIRouter:
     def save_profil(request: Request, payload: dict, user: User = Depends(current_user)) -> dict:
         return _container(request).auth.save_profile(user.id, payload)
 
+    @router.post("/api/haslo")
+    def change_password(request: Request, payload: dict, user: User = Depends(current_user)) -> dict:
+        """§23.2: zmiana hasła (obecne + nowe). 400 przy złym obecnym / pustym nowym."""
+        try:
+            _container(request).auth.change_password(
+                user.id or 0, payload.get("obecne", ""), payload.get("nowe", "")
+            )
+        except InvalidCredentials as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"status": "ok"}
+
     @router.get("/api/me")
     def me(user: User = Depends(current_user)) -> dict:
         return {"id": user.id, "username": user.username}

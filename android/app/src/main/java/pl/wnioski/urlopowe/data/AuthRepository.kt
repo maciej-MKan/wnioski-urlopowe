@@ -24,5 +24,10 @@ class AuthRepository(
 
     suspend fun me(): Me = api.me()
 
+    /** §23.2: zmiana hasła (obecne + nowe). Rzuca HttpException 400 przy błędzie. */
+    suspend fun changePassword(current: String, new: String) {
+        api.changePassword(mapOf("obecne" to current, "nowe" to new))
+    }
+
     fun logout() = tokens.clear()
 }

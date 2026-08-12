@@ -161,6 +161,21 @@ class FakeUserRepository(UserRepository):
     def first(self):
         return self._by_id[min(self._by_id)] if self._by_id else None
 
+    def set_password(self, user_id, password_hash):
+        u = self._by_id.get(user_id)
+        if u is not None:
+            self._by_id[user_id] = User(id=u.id, username=u.username, password_hash=password_hash,
+                                        created_at=u.created_at, google_sub=u.google_sub)
+            self._by_name[u.username] = self._by_id[user_id]
+
+    def delete(self, user_id):
+        u = self._by_id.pop(user_id, None)
+        if u is not None:
+            self._by_name.pop(u.username, None)
+            if u.google_sub:
+                self._by_google.pop(u.google_sub, None)
+            self._profiles.pop(user_id, None)
+
     def get_profile(self, user_id):
         return dict(self._profiles.get(user_id, {}))
 

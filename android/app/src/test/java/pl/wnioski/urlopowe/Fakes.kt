@@ -55,6 +55,12 @@ class FakeApi(
         registered = body
         return TokenResponse(accessToken = "tok-${body.username}")
     }
+    /** Ostatnia zmiana hasła — do asercji. */
+    var passwordChange: Map<String, String>? = null
+    override suspend fun changePassword(body: Map<String, String>): Map<String, String> {
+        passwordChange = body
+        return mapOf("status" to "ok")
+    }
     override suspend fun health(): HealthResponse {
         if (healthThrows) throw RuntimeException("brak połączenia")
         return health
