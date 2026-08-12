@@ -3,6 +3,8 @@ package pl.wnioski.urlopowe
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -89,6 +91,30 @@ class CalendarViewModelTest {
         vm.openMonth(target)
         assertEquals(pl.wnioski.urlopowe.ui.ViewMode.MONTH, vm.state.value.viewMode)
         assertEquals(target, vm.state.value.ym)
+    }
+
+    @Test
+    fun overlappingRangeSelectionBlocked() {
+        val ym = java.time.YearMonth.now()
+        val rec = RecordDto(
+            id = 1, typ = "wypoczynkowy", status = "do_akceptacji",
+            dataOd = ym.atDay(10).toString(), dataDo = ym.atDay(14).toString(),
+        )
+        val vm = CalendarViewModel(CalendarRepository(FakeApi(records = listOf(rec), types = types)))
+        val cells = vm.state.value.cells.filterNotNull()
+        val d8 = cells.first { it.day == 8 }
+        val d12 = cells.first { it.day == 12 }
+        vm.select(d8)
+        vm.select(d12)                                 // 8–12 nachodzi na 10–14 → blokada (§22.9)
+        assertNotNull(vm.state.value.error)
+        assertEquals(d8.iso, vm.state.value.selStart)  // zakres nie domknięty
+        assertEquals(d8.iso, vm.state.value.selEnd)
+        // Rozłączny zakres domyka się bez błędu.
+        val d2 = cells.first { it.day == 2 }
+        val d5 = cells.first { it.day == 5 }
+        vm.select(d2); vm.select(d5)
+        assertEquals(d5.iso, vm.state.value.selEnd)
+        assertNull(vm.state.value.error)
     }
 
     @Test

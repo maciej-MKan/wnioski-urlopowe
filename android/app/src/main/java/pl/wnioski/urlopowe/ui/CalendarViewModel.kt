@@ -104,8 +104,16 @@ class CalendarViewModel(private val repo: CalendarRepository) : ViewModel() {
 
     private fun clearSelection() {
         anchor = null
-        _state.update { it.copy(selected = null, selStart = null, selEnd = null) }
+        _state.update { it.copy(selected = null, selStart = null, selEnd = null, error = null) }
     }
+
+    /** §22.9/§20.4: czy zakres [start,end] nachodzi na istniejący rekord (≠ odrzucony). */
+    private fun overlapsExisting(start: String, end: String): Boolean =
+        records.any { r ->
+            r.status != "odrzucony" &&
+                !r.dataOd.isNullOrBlank() && !r.dataDo.isNullOrBlank() &&
+                r.dataOd!! <= end && start <= r.dataDo!!
+        }
 
     /**
      * Zaznaczanie okresu przez kliknięcia (§17): pierwsze tapnięcie ustawia początek (jeden dzień),
@@ -120,7 +128,7 @@ class CalendarViewModel(private val repo: CalendarRepository) : ViewModel() {
             a == null && s.selStart == d && s.selEnd == d -> clearSelection()
             a == null -> {
                 anchor = d
-                _state.update { it.copy(selected = cell, selStart = d, selEnd = d) }
+                _state.update { it.copy(selected = cell, selStart = d, selEnd = d, error = null) }
             }
             // Ponowne kliknięcie dnia startowego (zaznaczanie w toku) → odznacz (§22.7).
             d == a -> clearSelection()
@@ -128,8 +136,13 @@ class CalendarViewModel(private val repo: CalendarRepository) : ViewModel() {
                 val start = if (a <= d) a else d
                 val end = if (a <= d) d else a
                 anchor = null
-                val startCell = _state.value.cells.filterNotNull().firstOrNull { it.iso == start } ?: cell
-                _state.update { it.copy(selected = startCell, selStart = start, selEnd = end) }
+                if (overlapsExisting(start, end)) {
+                    // §22.9: nie domykamy zakresu nachodzącego na istniejący urlop — komunikat.
+                    _state.update { it.copy(error = "Zaznaczony okres nachodzi na istniejący urlop — wybierz inny.") }
+                } else {
+                    val startCell = _state.value.cells.filterNotNull().firstOrNull { it.iso == start } ?: cell
+                    _state.update { it.copy(selected = startCell, selStart = start, selEnd = end, error = null) }
+                }
             }
         }
     }
