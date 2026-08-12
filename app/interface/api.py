@@ -177,6 +177,17 @@ def create_router() -> APIRouter:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return {"status": "ok"}
 
+    @router.delete("/api/konto")
+    def delete_account(
+        request: Request,
+        user: User = Depends(current_user),
+        service: LeaveService = Depends(get_service),
+    ) -> Response:
+        """§23.4: usuwa konto i wszystkie dane użytkownika (rekordy, pliki, uprawnienia, profil)."""
+        service.delete_all_data()
+        _container(request).auth.delete_account(user.id or 0)
+        return Response(status_code=204)
+
     @router.get("/api/me")
     def me(user: User = Depends(current_user)) -> dict:
         return {"id": user.id, "username": user.username}

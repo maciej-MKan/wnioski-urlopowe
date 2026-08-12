@@ -54,6 +54,10 @@ class LeaveRecordRepository(ABC):
         """The record's attachment as (content, mime, original_name) or None."""
 
     @abstractmethod
+    def delete_all(self) -> None:
+        """Kasuje wszystkie rekordy użytkownika (i ich pliki PDF/załączniki) — §23.4."""
+
+    @abstractmethod
     def delete(self, record_id: int) -> bool:
         """Deletes a record (and its file). Returns True when something was removed."""
 
@@ -68,6 +72,10 @@ class EntitlementRepository(ABC):
     @abstractmethod
     def save(self, entitlement: Entitlement) -> None:
         """Saves an entitlement (upsert by the year+type key)."""
+
+    @abstractmethod
+    def delete_all(self) -> None:
+        """Kasuje wszystkie uprawnienia użytkownika (wszystkie lata) — §23.4."""
 
 
 class UserRepository(ABC):

@@ -50,4 +50,16 @@ class AccountViewModelTest {
         assertNull(api.passwordChange)
         assertNotNull(v.state.value.error)
     }
+
+    @Test
+    fun deleteAccountIsTwoStep() {
+        val (v, api) = vm()
+        v.deleteAccount()                              // pierwsze tapnięcie — tylko potwierdzenie
+        assertTrue(v.state.value.deleteConfirm)
+        assertFalse(api.accountDeleted)
+        assertFalse(v.state.value.deleted)
+        v.deleteAccount()                              // drugie — faktyczne usunięcie
+        assertTrue(api.accountDeleted)
+        assertTrue(v.state.value.deleted)
+    }
 }

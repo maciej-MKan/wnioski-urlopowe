@@ -17,6 +17,9 @@ data class AccountState(
     val submitting: Boolean = false,
     val error: String? = null,
     val done: Boolean = false,   // hasło zmienione
+    val deleteConfirm: Boolean = false,  // §23.4: pierwsze tapnięcie „Usuń konto"
+    val deleting: Boolean = false,
+    val deleted: Boolean = false,        // konto usunięte → ekran wyloguje/przekieruje
 )
 
 /** §23.2: zmiana hasła zalogowanego użytkownika. */
@@ -41,6 +44,24 @@ class AccountViewModel(private val auth: AuthRepository) : ViewModel() {
             } catch (e: Exception) {
                 val msg = apiErrorDetail(e) ?: "Nie udało się zmienić hasła."
                 _state.update { it.copy(submitting = false, error = msg) }
+            }
+        }
+    }
+
+    /** §23.4: dwustopniowe usunięcie konta — pierwsze tapnięcie potwierdza, drugie usuwa. */
+    fun deleteAccount() {
+        if (!_state.value.deleteConfirm) {
+            _state.update { it.copy(deleteConfirm = true, error = null) }
+            return
+        }
+        _state.update { it.copy(deleting = true, error = null) }
+        viewModelScope.launch {
+            try {
+                auth.deleteAccount()
+                _state.update { it.copy(deleting = false, deleted = true) }
+            } catch (e: Exception) {
+                val msg = apiErrorDetail(e) ?: "Nie udało się usunąć konta."
+                _state.update { it.copy(deleting = false, deleteConfirm = false, error = msg) }
             }
         }
     }

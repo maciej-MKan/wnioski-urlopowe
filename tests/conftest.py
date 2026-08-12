@@ -96,6 +96,12 @@ class FakeLeaveRecordRepository(LeaveRecordRepository):
                 del self._by_hash[h]
         return True
 
+    def delete_all(self) -> None:
+        self._by_id.clear()
+        self._by_hash.clear()
+        self._pdf.clear()
+        self._attachments.clear()
+
 
 class FakeEntitlementRepository(EntitlementRepository):
     """In-memory entitlement repository."""
@@ -108,6 +114,9 @@ class FakeEntitlementRepository(EntitlementRepository):
 
     def save(self, entitlement: Entitlement) -> None:
         self._data[(entitlement.year, entitlement.leave_type)] = entitlement
+
+    def delete_all(self) -> None:
+        self._data.clear()
 
 
 class FakeDocumentGenerator:

@@ -508,6 +508,24 @@ class SqliteLeaveRecordRepository(LeaveRecordRepository):
         path = self._pdf_dir / row["pdf_path"]
         return path.read_bytes() if path.exists() else None
 
+    def delete_all(self) -> None:
+        """§23.4: kasuje wszystkie rekordy użytkownika oraz ich pliki (PDF/załączniki) z dysku."""
+        conn = self._connect()
+        try:
+            paths = [
+                r["pdf_path"]
+                for r in conn.execute(
+                    "SELECT pdf_path FROM leave_record WHERE user_id = ?", (self._user_id,)
+                ).fetchall()
+                if r["pdf_path"]
+            ]
+            conn.execute("DELETE FROM leave_record WHERE user_id = ?", (self._user_id,))
+            conn.commit()
+        finally:
+            conn.close()
+        for path in paths:
+            (self._pdf_dir / path).unlink(missing_ok=True)
+
     def save_attachment(
         self, record_id: int, content: bytes, mime: str, name: Optional[str], now: str
     ) -> Optional[LeaveRecord]:
@@ -597,6 +615,15 @@ class SqliteEntitlementRepository(EntitlementRepository):
 
     def _connect(self) -> sqlite3.Connection:
         return _connect(self._db)
+
+    def delete_all(self) -> None:
+        """§23.4: kasuje wszystkie uprawnienia użytkownika (wszystkie lata)."""
+        conn = self._connect()
+        try:
+            conn.execute("DELETE FROM entitlement WHERE user_id = ?", (self._user_id,))
+            conn.commit()
+        finally:
+            conn.close()
 
     @staticmethod
     def _from_row(row: sqlite3.Row) -> Entitlement:

@@ -85,6 +85,11 @@ class AuthService:
             raise InvalidCredentials("Nieprawidłowe obecne hasło.")
         self._users.set_password(user_id, self._hasher.hash(new))
 
+    def delete_account(self, user_id: int) -> None:
+        """§23.4: usuwa wiersz konta (+ profil). Dane tenanta (rekordy/uprawnienia) kasuje
+        warstwa wyżej (`LeaveService.delete_all_data`)."""
+        self._users.delete(user_id)
+
     def profile(self, user_id: int) -> dict:
         """User's saved default common fields (name, position, employer…) — §19."""
         return self._users.get_profile(user_id)

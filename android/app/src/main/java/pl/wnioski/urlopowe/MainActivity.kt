@@ -110,6 +110,13 @@ fun App(container: AppContainer, pendingToken: String? = null, onTokenConsumed: 
             container, prefillFrom = n.from, prefillTo = n.to,
             onBack = { nav = Nav.Calendar }, onDone = { nav = Nav.Calendar },
         )
-        Nav.Ustawienia -> UstawieniaScreen(container, onBack = { nav = Nav.Calendar })
+        Nav.Ustawienia -> UstawieniaScreen(
+            container,
+            onBack = { nav = Nav.Calendar },
+            onAccountDeleted = {
+                // §23.4: po usunięciu konta — wyloguj i wróć na ekran logowania.
+                container.auth.logout(); nav = Nav.Calendar; loginKey++; loggedIn = false
+            },
+        )
     }
 }

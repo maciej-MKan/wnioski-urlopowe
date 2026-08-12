@@ -11,6 +11,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
@@ -40,7 +41,7 @@ import pl.wnioski.urlopowe.data.RegistryTypeDto
  * oraz przysługujące limity na dany rok. Podgląd wykorzystania jest osobno, w Saldzie.
  */
 @Composable
-fun UstawieniaScreen(container: AppContainer, onBack: () -> Unit) {
+fun UstawieniaScreen(container: AppContainer, onBack: () -> Unit, onAccountDeleted: () -> Unit = {}) {
     val profileVm: ProfileViewModel = viewModel(
         factory = viewModelFactory { initializer { ProfileViewModel(container.applications) } }
     )
@@ -54,6 +55,7 @@ fun UstawieniaScreen(container: AppContainer, onBack: () -> Unit) {
     val settings by settingsVm.state.collectAsStateWithLifecycle()
     val account by accountVm.state.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { settingsVm.load() }
+    LaunchedEffect(account.deleted) { if (account.deleted) onAccountDeleted() }
 
     Column(modifier = Modifier.fillMaxSize().safeDrawingPadding().padding(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
@@ -117,6 +119,29 @@ private fun AccountSection(vm: AccountViewModel, state: AccountState) {
     Button(onClick = vm::changePassword, enabled = !state.submitting,
         modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
         Text(if (state.submitting) "Zapisywanie…" else "Zmień hasło")
+    }
+
+    // §23.4: usunięcie konta (dwustopniowe)
+    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+    Text("Usuń konto", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+    Text(
+        "Nieodwracalne — usuwa konto i wszystkie Twoje dane (wnioski, limity, profil, pliki).",
+        fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    OutlinedButton(
+        onClick = vm::deleteAccount,
+        enabled = !state.deleting,
+        colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+            contentColor = MaterialTheme.colorScheme.error),
+        modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+    ) {
+        Text(
+            when {
+                state.deleting -> "Usuwanie…"
+                state.deleteConfirm -> "Na pewno? Kliknij ponownie, aby usunąć"
+                else -> "Usuń konto"
+            }
+        )
     }
 }
 

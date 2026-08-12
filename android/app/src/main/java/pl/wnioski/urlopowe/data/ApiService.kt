@@ -28,6 +28,9 @@ interface ApiService {
     @POST("api/haslo")
     suspend fun changePassword(@Body body: Map<String, String>): Map<String, String>
 
+    @DELETE("api/konto")
+    suspend fun deleteAccount()
+
     @GET("api/health")
     suspend fun health(): HealthResponse
 

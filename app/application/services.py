@@ -316,6 +316,11 @@ class LeaveService:
     def delete_record(self, record_id: int) -> bool:
         return self._repository.delete(record_id)
 
+    def delete_all_data(self) -> None:
+        """§23.4: kasuje wszystkie dane użytkownika (rekordy + pliki, uprawnienia)."""
+        self._repository.delete_all()
+        self._entitlements.delete_all()
+
     def _required_record(self, record_id: int) -> LeaveRecord:
         record = self._repository.get(record_id)
         if record is None:

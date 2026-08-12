@@ -29,5 +29,8 @@ class AuthRepository(
         api.changePassword(mapOf("obecne" to current, "nowe" to new))
     }
 
+    /** §23.4: usuwa konto i wszystkie dane użytkownika (nieodwracalne). */
+    suspend fun deleteAccount() = api.deleteAccount()
+
     fun logout() = tokens.clear()
 }

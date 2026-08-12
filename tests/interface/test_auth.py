@@ -64,6 +64,22 @@ def test_change_password_requires_auth(raw_client):
     assert raw_client.post("/api/haslo", json={"obecne": "x", "nowe": "y"}).status_code == 401
 
 
+def test_delete_account(raw_client):
+    token = raw_client.post("/api/register", json={"username": "ola", "password": "tajne123"}).json()["access_token"]
+    h = {"Authorization": f"Bearer {token}"}
+    raw_client.post("/api/rekordy/reczny",
+                    json={"typ": "wypoczynkowy", "data_od": "2026-06-01", "data_do": "2026-06-05"}, headers=h)
+    assert len(raw_client.get("/api/rekordy", headers=h).json()) == 1
+    assert raw_client.delete("/api/konto", headers=h).status_code == 204
+    # konto i dane zniknęły — token nie działa, logowanie niemożliwe
+    assert raw_client.get("/api/me", headers=h).status_code == 401
+    assert raw_client.post("/api/token", data={"username": "ola", "password": "tajne123"}).status_code == 401
+
+
+def test_delete_account_requires_auth(raw_client):
+    assert raw_client.delete("/api/konto").status_code == 401
+
+
 def test_invalid_token_rejected(raw_client):
     assert raw_client.get("/api/me", headers={"Authorization": "Bearer sfalszowany"}).status_code == 401
 

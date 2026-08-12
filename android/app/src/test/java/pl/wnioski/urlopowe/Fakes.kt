@@ -61,6 +61,9 @@ class FakeApi(
         passwordChange = body
         return mapOf("status" to "ok")
     }
+    /** Czy usunięto konto — do asercji. */
+    var accountDeleted = false
+    override suspend fun deleteAccount() { accountDeleted = true }
     override suspend fun health(): HealthResponse {
         if (healthThrows) throw RuntimeException("brak połączenia")
         return health

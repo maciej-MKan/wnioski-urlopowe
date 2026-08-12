@@ -99,6 +99,13 @@
       <span class="flash hidden" id="pw-ok">hasło zmienione</span>
       <span id="pw-err" style="color:#d0453b;font-size:.85rem;margin-left:8px"></span>
     </div>
+
+    <div style="margin-top:18px;border-top:1px solid var(--line);padding-top:14px">
+      <h3 style="font-size:.95rem;margin:0 0 6px;color:#d0453b">Usuń konto</h3>
+      <p class="muted" style="margin:0 0 8px">Nieodwracalne — usuwa konto i wszystkie Twoje dane (wnioski, limity, profil, pliki).</p>
+      <button class="ghost" id="usun-konto" style="border-color:#d0453b;color:#d0453b">Usuń konto</button>
+      <span id="usun-err" style="color:#d0453b;font-size:.85rem;margin-left:8px"></span>
+    </div>
   </div>
 
 </div>
@@ -212,6 +219,16 @@ $("zmien-haslo").addEventListener("click", async () => {
   if(!r.ok){ let m = "Nie udało się zmienić hasła."; try{ const j = await r.json(); if(j.detail) m = j.detail; }catch(e){} err.textContent = m; return; }
   ["pw-obecne","pw-nowe","pw-powtorz"].forEach(id => $(id).value = "");
   ok.classList.remove("hidden"); setTimeout(() => ok.classList.add("hidden"), 2500);
+});
+
+// §23.4: usunięcie konta (dwustopniowe potwierdzenie)
+let usunPewny = false;
+$("usun-konto").addEventListener("click", async () => {
+  const b = $("usun-konto"), err = $("usun-err"); err.textContent = "";
+  if(!usunPewny){ usunPewny = true; b.textContent = "Na pewno? Kliknij ponownie, aby usunąć"; return; }
+  const r = await api.del("/api/konto");
+  if(!r.ok){ err.textContent = "Nie udało się usunąć konta."; usunPewny = false; b.textContent = "Usuń konto"; return; }
+  clearToken(); location.href = "/";
 });
 
 (async function init(){
