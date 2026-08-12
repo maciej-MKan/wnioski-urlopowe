@@ -84,6 +84,7 @@ fun CalendarScreen(
     androidx.compose.runtime.LaunchedEffect(Unit) { vm.load() }
     var menu by remember { mutableStateOf(false) }
     val downloadPdf = rememberPdfDownloader { id -> container.calendar.pdfBytes(id) }
+    val downloadAttachment = rememberPdfDownloader { id -> container.calendar.attachmentBytes(id) }
 
     Column(modifier = Modifier.fillMaxSize().safeDrawingPadding()) {
         // §22.3: nagłówek aplikacji z menu (nawigacja + wyloguj).
@@ -169,6 +170,7 @@ fun CalendarScreen(
                     onReject = vm::reject,
                     onDelete = vm::deleteRecord,
                     onPdf = { id -> downloadPdf(id, "wniosek-$id.pdf") },
+                    onAttachment = { id -> downloadAttachment(id, "zalacznik-$id") },
                     onCreate = onCreate,
                     onManual = onManual,
                 )
@@ -266,6 +268,7 @@ private fun DetailsPanel(
     onReject: (Int) -> Unit,
     onDelete: (Int) -> Unit,
     onPdf: (Int) -> Unit,
+    onAttachment: (Int) -> Unit,
     onCreate: (String?, String?) -> Unit,
     onManual: (String?, String?) -> Unit,
 ) {
@@ -300,6 +303,10 @@ private fun DetailsPanel(
                     if (r.status != "zaakceptowany") TextButton(onClick = { onApprove(id) }) { Text("Zaakceptuj") }
                     if (r.status != "odrzucony") TextButton(onClick = { onReject(id) }) { Text("Odrzuć") }
                     if (r.zrodlo == "wniosek") TextButton(onClick = { onPdf(id) }) { Text("PDF") }
+                    // §22.10: załącznik dołączony do ręcznie dodanego urlopu (PDF/JPG).
+                    if (r.zrodlo == "reczny" && r.maZalacznik) {
+                        TextButton(onClick = { onAttachment(id) }) { Text("Załącznik") }
+                    }
                     TextButton(onClick = { onDelete(id) }) {
                         Text("Usuń", color = MaterialTheme.colorScheme.error)
                     }

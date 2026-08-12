@@ -20,4 +20,8 @@ class CalendarRepository(private val api: ApiService) {
 
     suspend fun pdfBytes(id: Int): ByteArray =
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { api.pdf(id).bytes() }
+
+    /** §22.10: bajty załącznika ręcznego rekordu (PDF/JPG). */
+    suspend fun attachmentBytes(id: Int): ByteArray =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { api.attachment(id).bytes() }
 }

@@ -119,6 +119,10 @@ class FakeApi(
     override suspend fun pdf(id: Int): okhttp3.ResponseBody =
         "%PDF-1.4".toByteArray()
             .toResponseBody("application/pdf".toMediaTypeOrNull())
+
+    override suspend fun attachment(id: Int): okhttp3.ResponseBody =
+        "%PDF-1.4".toByteArray()
+            .toResponseBody("application/pdf".toMediaTypeOrNull())
 }
 
 class FakeStore(initial: String? = null) : TokenStore {

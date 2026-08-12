@@ -81,4 +81,7 @@ interface ApiService {
 
     @GET("api/rekordy/{id}/pdf")
     suspend fun pdf(@Path("id") id: Int): ResponseBody
+
+    @GET("api/rekordy/{id}/zalacznik")
+    suspend fun attachment(@Path("id") id: Int): ResponseBody
 }

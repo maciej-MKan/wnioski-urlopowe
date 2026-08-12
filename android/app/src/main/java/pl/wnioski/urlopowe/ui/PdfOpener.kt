@@ -11,19 +11,29 @@ import androidx.core.content.FileProvider
 import kotlinx.coroutines.launch
 import java.io.File
 
-/** Zapisuje PDF do cache i otwiera zewnętrzną przeglądarką (FileProvider). */
+/** Zapisuje plik (PDF/JPG) do cache i otwiera zewnętrzną przeglądarką (FileProvider). */
 object PdfOpener {
 
     enum class Result { OPENED, NO_VIEWER, ERROR }
 
+    /** Wykrywa typ z pierwszych bajtów (PDF/JPG) — załączniki bywają obrazami, nie tylko PDF. */
+    private fun detect(bytes: ByteArray): Pair<String, String> = when {
+        bytes.size >= 4 && bytes[0] == 0x25.toByte() && bytes[1] == 0x50.toByte() &&
+            bytes[2] == 0x44.toByte() && bytes[3] == 0x46.toByte() -> "pdf" to "application/pdf"
+        bytes.size >= 2 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte() -> "jpg" to "image/jpeg"
+        else -> "pdf" to "application/pdf"
+    }
+
     fun open(context: Context, bytes: ByteArray, fileName: String): Result = try {
+        val (ext, mime) = detect(bytes)
         val dir = File(context.cacheDir, "pdfs").apply { mkdirs() }
-        val safe = fileName.ifBlank { "wniosek.pdf" }.substringAfterLast('/').substringAfterLast('\\')
-        val file = File(dir, if (safe.endsWith(".pdf", ignoreCase = true)) safe else "$safe.pdf")
+        val safe = fileName.ifBlank { "plik" }.substringAfterLast('/').substringAfterLast('\\')
+        val base = safe.substringBeforeLast('.', safe)
+        val file = File(dir, "$base.$ext")
         file.writeBytes(bytes)
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
         val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, "application/pdf")
+            setDataAndType(uri, mime)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         context.startActivity(intent)
@@ -49,12 +59,12 @@ fun rememberPdfDownloader(fetch: suspend (Int) -> ByteArray): (Int, String) -> U
                     when (PdfOpener.open(context, bytes, name)) {
                         PdfOpener.Result.OPENED -> Unit
                         PdfOpener.Result.NO_VIEWER ->
-                            Toast.makeText(context, "Brak aplikacji do otwierania PDF.", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, "Brak aplikacji do otwarcia pliku.", Toast.LENGTH_LONG).show()
                         PdfOpener.Result.ERROR ->
-                            Toast.makeText(context, "Nie udało się otworzyć PDF.", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Nie udało się otworzyć pliku.", Toast.LENGTH_SHORT).show()
                     }
                 } catch (e: Exception) {
-                    Toast.makeText(context, "Nie udało się pobrać PDF.", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Nie udało się pobrać pliku.", Toast.LENGTH_SHORT).show()
                 }
             }
         }
