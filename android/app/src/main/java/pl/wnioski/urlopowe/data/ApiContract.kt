@@ -4,6 +4,10 @@ package pl.wnioski.urlopowe.data
  * Zakres wersji kontraktu API (`api_version` z `/api/health`), z którym potrafi rozmawiać ten
  * klient. Bumpuj razem z backendowym `API_VERSION`, gdy zmienia się kontrakt. Klient blokuje
  * logowanie, gdy `api_version` serwera wypada poza `MIN_SUPPORTED..MAX_SUPPORTED`.
+ *
+ * UWAGA: zgodność zależy WYŁĄCZNIE od `api_version`, nie od `versionName`/`APP_VERSION`. Fix
+ * (patch, np. 0.5 → 0.5.1) NIE rusza `API_VERSION`, więc różnica ostatniej cyfry wersji między
+ * serwerem a tym klientem jest w pełni dozwolona i celowa (patrz backend `app/version.py`).
  */
 object ApiContract {
     const val MIN_SUPPORTED = 1
