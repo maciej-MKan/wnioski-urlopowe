@@ -407,8 +407,11 @@ function renderLegenda(){
 // ---- §17: zaznaczanie okresu i dialog trybu ----
 function onDayClick(y,m,d,reki,swieto){
   const k = klucz(y,m,d);
+  // Dzień należący do urlopu (rekord ≠ odrzucony): klik nie ustala początku ani końca —
+  // pokazuje tylko szczegóły; ewentualny wybrany początek zakresu jest czyszczony.
+  const urlop = reki.some(r => r.status !== "odrzucony");
+  if(urlop){ anulujWybor(); pokazSzczegoly(y,m,d,reki,swieto); return; }
   if(wyborStart){ zakonczWybor(k); return; }
-  if(reki.length){ pokazSzczegoly(y,m,d,reki,swieto); return; }  // dzień z rekordami → szczegóły
   rozpocznijWybor(k);
 }
 function rozpocznijWybor(k){ wyborStart = k; $("wybor-hint").classList.remove("hidden"); render(); }

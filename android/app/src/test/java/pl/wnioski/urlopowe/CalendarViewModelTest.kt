@@ -103,9 +103,9 @@ class CalendarViewModelTest {
         val vm = CalendarViewModel(CalendarRepository(FakeApi(records = listOf(rec), types = types)))
         val cells = vm.state.value.cells.filterNotNull()
         val d8 = cells.first { it.day == 8 }
-        val d12 = cells.first { it.day == 12 }
+        val d16 = cells.first { it.day == 16 }         // wolny dzień za urlopem 10–14
         vm.select(d8)
-        vm.select(d12)                                 // 8–12 nachodzi na 10–14 → blokada (§22.9)
+        vm.select(d16)                                 // 8–16 krzyżuje 10–14 → blokada (§22.9)
         assertNotNull(vm.state.value.error)
         assertEquals(d8.iso, vm.state.value.selStart)  // zakres nie domknięty
         assertEquals(d8.iso, vm.state.value.selEnd)
@@ -141,5 +141,48 @@ class CalendarViewModelTest {
         vm.select(cells.first { it.day == 5 })
         assertEquals(cells.first { it.day == 5 }.iso, vm.state.value.selStart)
         assertEquals(cells.first { it.day == 8 }.iso, vm.state.value.selEnd)
+    }
+
+    private fun vmWithLeave(status: String = "do_akceptacji"): Pair<CalendarViewModel, List<pl.wnioski.urlopowe.ui.DayCell>> {
+        val ym = java.time.YearMonth.now()
+        val rec = RecordDto(
+            id = 1, typ = "wypoczynkowy", status = status,
+            dataOd = ym.atDay(10).toString(), dataDo = ym.atDay(14).toString(),
+        )
+        val vm = CalendarViewModel(CalendarRepository(FakeApi(records = listOf(rec), types = types)))
+        return vm to vm.state.value.cells.filterNotNull()
+    }
+
+    @Test
+    fun clickLeaveDayShowsInfoWithoutStartingSelection() {
+        val (vm, cells) = vmWithLeave()
+        val leaveDay = cells.first { it.day == 12 }
+        vm.select(leaveDay)                                // klik w urlop bez wybranego początku
+        assertEquals(leaveDay.iso, vm.state.value.selected!!.iso)  // pokazuje szczegóły
+        assertNull(vm.state.value.selStart)                // NIE ustala początku
+        assertNull(vm.state.value.selEnd)
+        assertNull(vm.state.value.error)
+    }
+
+    @Test
+    fun clickLeaveDayClearsPendingStart() {
+        val (vm, cells) = vmWithLeave()
+        val free = cells.first { it.day == 5 }
+        val leaveDay = cells.first { it.day == 12 }
+        vm.select(free)                                    // wybrany początek (wolny dzień)
+        assertEquals(free.iso, vm.state.value.selStart)
+        vm.select(leaveDay)                                // klik w urlop → czyści początek, bez błędu
+        assertNull(vm.state.value.selStart)
+        assertNull(vm.state.value.selEnd)
+        assertNull(vm.state.value.error)
+        assertEquals(leaveDay.iso, vm.state.value.selected!!.iso)
+    }
+
+    @Test
+    fun rejectedLeaveDayIsSelectable() {
+        val (vm, cells) = vmWithLeave(status = "odrzucony")
+        val d12 = cells.first { it.day == 12 }
+        vm.select(d12)                                     // odrzucony urlop nie blokuje zaznaczania
+        assertEquals(d12.iso, vm.state.value.selStart)
     }
 }

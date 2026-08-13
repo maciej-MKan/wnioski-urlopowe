@@ -115,15 +115,26 @@ class CalendarViewModel(private val repo: CalendarRepository) : ViewModel() {
                 r.dataOd!! <= end && start <= r.dataDo!!
         }
 
+    /** Czy dzień należy do istniejącego urlopu (rekord ≠ odrzucony) — spójne z [overlapsExisting]. */
+    private fun isLeaveDay(cell: DayCell): Boolean = cell.records.any { it.status != "odrzucony" }
+
     /**
      * Zaznaczanie okresu przez kliknięcia (§17): pierwsze tapnięcie ustawia początek (jeden dzień),
      * drugie domyka zakres. Ponowne kliknięcie w zaznaczony dzień startowy odznacza wybór (§22.7).
+     * Kliknięcie w dzień należący do urlopu NIE ustala początku ani końca: pokazuje tylko informacje
+     * o tym urlopie, a jeśli był wybrany początek zakresu — czyści go.
      */
     fun select(cell: DayCell?) {
         val d = cell?.iso ?: return clearSelection()
         val a = anchor
         val s = _state.value
         when {
+            // Klik w dzień należący do urlopu → tylko podgląd, bez ustalania początku/końca.
+            // Ewentualny wybrany początek zakresu zostaje wyczyszczony.
+            isLeaveDay(cell) -> {
+                anchor = null
+                _state.update { it.copy(selected = cell, selStart = null, selEnd = null, error = null) }
+            }
             // Brak trwającego zaznaczania, ale klik w już zaznaczony pojedynczy dzień → odznacz (§22.7).
             a == null && s.selStart == d && s.selEnd == d -> clearSelection()
             a == null -> {
@@ -159,7 +170,7 @@ class CalendarViewModel(private val repo: CalendarRepository) : ViewModel() {
                 val ym = _state.value.ym
                 records = repo.records(ym.year)
                 val cells = monthCells(ym, records, holidays)
-                val selIso = _state.value.selStart
+                val selIso = _state.value.selected?.iso   // zachowaj podglądany dzień (także urlop bez selStart)
                 val newSel = selIso?.let { iso -> cells.filterNotNull().firstOrNull { it.iso == iso } }
                 _state.update { it.copy(cells = cells, selected = newSel) }
             } catch (e: Exception) {
