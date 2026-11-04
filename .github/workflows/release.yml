@@ -24,6 +24,10 @@ jobs:
           cache: gradle
 
       - uses: android-actions/setup-android@v3
+        with:
+          # Domyślny pakiet „tools” nie istnieje już w cmdline-tools 16 na runnerze (sdkmanager kończy się błędem).
+          # Nie jest potrzebny: platformę i build-tools instaluje osobny krok poniżej.
+          packages: ''
 
       # Odtworzenie keystore + keystore.properties z sekretów repozytorium.
       # Sekrety (Settings → Secrets and variables → Actions):
