@@ -78,18 +78,35 @@ fun App(container: AppContainer, pendingToken: String? = null, onTokenConsumed: 
     // VM zachowuje success=true i od razu „odbija" z powrotem do aplikacji).
     var loginKey by rememberSaveable { mutableStateOf(0) }
 
+    // Komunikat na ekranie logowania po wygaśnięciu sesji (token 30 dni, bez odnawiania).
+    var loginNotice by rememberSaveable { mutableStateOf<String?>(null) }
+
+    // Serwer odrzucił sesję (401) → token usunięty w ApiFactory; wracamy na logowanie.
+    LaunchedEffect(container) {
+        container.sessionExpired.collect {
+            if (loggedIn) {
+                nav = Nav.Calendar; loginKey++; loggedIn = false
+                loginNotice = "Sesja wygasła. Zaloguj się ponownie."
+            }
+        }
+    }
+
     // Deep link z logowania Google — zapisz token i wejdź do aplikacji.
     LaunchedEffect(pendingToken) {
         if (pendingToken != null) {
             container.auth.acceptToken(pendingToken)
             nav = Nav.Calendar
+            loginNotice = null
             loggedIn = true
             onTokenConsumed()
         }
     }
 
     if (!loggedIn) {
-        LoginScreen(container, resetKey = loginKey, onLoggedIn = { loggedIn = true })
+        LoginScreen(
+            container, resetKey = loginKey, notice = loginNotice,
+            onLoggedIn = { loginNotice = null; loggedIn = true },
+        )
         return
     }
     when (val n = nav) {

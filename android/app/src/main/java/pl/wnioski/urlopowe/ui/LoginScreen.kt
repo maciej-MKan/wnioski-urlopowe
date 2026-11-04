@@ -34,7 +34,7 @@ import pl.wnioski.urlopowe.data.AppContainer
 import pl.wnioski.urlopowe.data.normalizeServerUrl
 
 @Composable
-fun LoginScreen(container: AppContainer, resetKey: Int = 0, onLoggedIn: () -> Unit) {
+fun LoginScreen(container: AppContainer, resetKey: Int = 0, notice: String? = null, onLoggedIn: () -> Unit) {
     // §22.8: klucz zmieniany przy wylogowaniu → nowa instancja VM (bez zachowanego success=true).
     val vm: LoginViewModel = viewModel(
         key = "login-$resetKey",
@@ -51,6 +51,9 @@ fun LoginScreen(container: AppContainer, resetKey: Int = 0, onLoggedIn: () -> Un
         verticalArrangement = Arrangement.Center,
     ) {
         Text("Wnioski urlopowe", style = MaterialTheme.typography.headlineMedium)
+        notice?.let {
+            Text(it, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 12.dp))
+        }
         when (state.step) {
             LoginStep.SERVER -> ServerStep(vm, state)
             LoginStep.CREDENTIALS -> CredentialsStep(vm, state, context)

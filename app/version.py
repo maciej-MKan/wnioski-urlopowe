@@ -18,5 +18,5 @@ Reguła wersjonowania (żeby fixy nie robiły rozjazdu klient↔serwer):
 """
 from __future__ import annotations
 
-APP_VERSION = "0.5.1"
+APP_VERSION = "0.5.2"
 API_VERSION = 1

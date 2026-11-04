@@ -19,8 +19,15 @@ object ApiFactory {
      * @param defaultBaseUrl adres-placeholder wymagany przez Retrofit (fallback z BuildConfig).
      * @param baseUrlProvider bieżący adres serwera (konfigurowalny przez użytkownika, §21) —
      *   interceptor przepisuje schemat/host/port każdego żądania na ten adres.
+     * @param onUnauthorized wołane (z wątku sieciowego) po 401 z wygasłą/odrzuconą sesją — token jest
+     *   wtedy już usunięty, a UI ma wrócić na ekran logowania.
      */
-    fun create(defaultBaseUrl: String, baseUrlProvider: () -> String, tokenStore: TokenStore): ApiService {
+    fun create(
+        defaultBaseUrl: String,
+        baseUrlProvider: () -> String,
+        tokenStore: TokenStore,
+        onUnauthorized: () -> Unit = {},
+    ): ApiService {
         // §21: podmiana hosta na adres wskazany przez użytkownika (ścieżki API są bezwzględne: /api/...).
         val hostSwap = Interceptor { chain ->
             val request = chain.request()
@@ -36,6 +43,7 @@ object ApiFactory {
         val logging = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC }
         val client = OkHttpClient.Builder()
             .addInterceptor(hostSwap)
+            .addInterceptor(unauthorizedInterceptor(tokenStore, onUnauthorized))
             .addInterceptor(auth)
             .addInterceptor(logging)
             .build()
@@ -60,3 +68,26 @@ internal fun swapHost(original: HttpUrl, targetBaseUrl: String): HttpUrl? {
         .port(target.port)
         .build()
 }
+
+/** Ścieżki, w których 401 oznacza zły login/hasło, a nie wygasłą sesję. */
+private val PUBLIC_AUTH_PATHS = setOf("/api/token", "/api/register")
+
+/**
+ * Wygasła/odrzucona sesja: odpowiedź 401 na żądanie z tokenem → usuwa token i wywołuje [onUnauthorized].
+ * Pomija logowanie/rejestrację (tam 401 = zły login). Token jest usuwany tylko, gdy nadal jest tym samym,
+ * z którym wysłano żądanie — spóźniona odpowiedź 401 na stary token nie może wylogować świeżo zalogowanego
+ * użytkownika. Backend wystawia jeden token na 30 dni (bez refresh tokena), więc jedyną reakcją jest
+ * ponowne logowanie.
+ */
+internal fun unauthorizedInterceptor(tokenStore: TokenStore, onUnauthorized: () -> Unit): Interceptor =
+    Interceptor { chain ->
+        val sentToken = tokenStore.get()
+        val response = chain.proceed(chain.request())
+        if (response.code == 401 && chain.request().url.encodedPath !in PUBLIC_AUTH_PATHS) {
+            if (tokenStore.get() == sentToken) {
+                tokenStore.clear()
+                onUnauthorized()
+            }
+        }
+        response
+    }
